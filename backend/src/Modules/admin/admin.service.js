@@ -1,0 +1,562 @@
+const slugify = require('slugify');
+const Admin = require('../../../DB/Models/admin.model');
+const User = require('../../../DB/Models/user.model');
+const CardOrder = require('../../../DB/Models/cardOrder.model');
+const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
+const Card = require('../../../DB/Models/card.model');
+const AdminAction = require('../../../DB/Models/adminAction.model');
+const Message = require('../../../DB/Models/message.model');
+const { AppError } = require('../../utils/errorhandling');
+const { signAdminToken } = require('../../services/token.service');
+const { issueCode, consumeCode } = require('../../services/verification.service');
+const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
+const logAdminAction = require('../../services/admin-log.service');
+
+const getConfiguredAdminEmails = (fallbackEmail = '') => {
+  const raw = [process.env.ADMIN_EMAIL, process.env.ADMIN_SEED_EMAIL, fallbackEmail]
+    .filter(Boolean)
+    .map((value) => String(value).trim().toLowerCase());
+
+  return [...new Set(raw)];
+};
+
+const getPrimaryAdminEmail = (fallbackEmail = '') => getConfiguredAdminEmails(fallbackEmail)[0] || '';
+
+const findConfiguredAdmin = async ({ fallbackEmail = '', selectPassword = false } = {}) => {
+  const candidates = getConfiguredAdminEmails(fallbackEmail);
+  for (const candidate of candidates) {
+    let query = Admin.findOne({ email: candidate });
+    if (selectPassword) {
+      query = query.select('+passwordHash');
+    }
+    const admin = await query;
+    if (admin) {
+      return admin;
+    }
+  }
+  return null;
+};
+
+const sanitizeAdmin = (admin) => {
+  const object = admin.toObject ? admin.toObject() : { ...admin };
+  delete object.passwordHash;
+  delete object.avatarPublicId;
+  delete object.__v;
+  object.primaryEmail = getPrimaryAdminEmail(object.email || '');
+  return object;
+};
+
+const login = async ({ email, password }) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  let admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
+
+  if (!admin && getConfiguredAdminEmails().includes(normalizedEmail)) {
+    admin = await findConfiguredAdmin({ fallbackEmail: normalizedEmail, selectPassword: true });
+  }
+
+  if (!admin) {
+    throw new AppError('Invalid admin credentials', 401);
+  }
+
+  const matched = await admin.comparePassword(password);
+  if (!matched) {
+    throw new AppError('Invalid admin credentials', 401);
+  }
+
+  return {
+    admin: sanitizeAdmin(admin),
+    token: signAdminToken(admin),
+  };
+};
+
+const requestLoginCode = async () => {
+  throw new AppError('تم إيقاف كود دخول الأدمن. استخدم البريد الإلكتروني وكلمة المرور لتسجيل الدخول.', 410);
+};
+
+const verifyLoginCode = async () => {
+  throw new AppError('تم إيقاف كود دخول الأدمن. استخدم البريد الإلكتروني وكلمة المرور لتسجيل الدخول.', 410);
+};
+
+const requestPasswordReset = async () => {
+  const admin = await findConfiguredAdmin({ selectPassword: true });
+  if (!admin) {
+    throw new AppError('لم يتم العثور على حساب الأدمن الأساسي. راجع ADMIN_EMAIL داخل ملف البيئة.', 404);
+  }
+
+  const deliveryEmail = getPrimaryAdminEmail(admin.email);
+  return issueCode({
+    email: deliveryEmail,
+    purpose: 'admin_reset_password',
+    accountModel: 'Admin',
+    title: 'إعادة تعيين كلمة مرور الأدمن',
+    greeting: `مرحبًا ${admin.name}،`,
+    intro: 'تم طلب إعادة تعيين كلمة مرور حساب الأدمن. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
+    helpText: 'سيتم إرسال هذا الرمز إلى البريد الأساسي للإدمن المُعد داخل ملف البيئة (.env). إذا لم تطلب هذا الإجراء، تجاهل الرسالة.',
+  });
+};
+
+const resetPassword = async (code, newPassword) => {
+  const admin = await findConfiguredAdmin({ selectPassword: true });
+  if (!admin) {
+    throw new AppError('لم يتم العثور على حساب الأدمن الأساسي. راجع ADMIN_EMAIL داخل ملف البيئة.', 404);
+  }
+
+  const deliveryEmail = getPrimaryAdminEmail(admin.email);
+  await consumeCode({
+    email: deliveryEmail,
+    code,
+    purpose: 'admin_reset_password',
+    accountModel: 'Admin',
+  });
+
+  admin.passwordHash = newPassword;
+  await admin.save();
+
+  return { changed: true };
+};
+
+const getDashboard = async () => {
+
+  const [users, starUsers, proUsers, orders, pendingReceipts, approvedCards, newMessages] = await Promise.all([
+    User.countDocuments(),
+    User.countDocuments({ currentPlan: 'STAR' }),
+    User.countDocuments({ currentPlan: 'PRO' }),
+    CardOrder.countDocuments(),
+    PaymentReceipt.countDocuments({ reviewStatus: 'pending' }),
+    Card.countDocuments({ isActive: true }),
+    Message.countDocuments({ status: 'new' }),
+  ]);
+
+  return {
+    users,
+    starUsers,
+    proUsers,
+    orders,
+    pendingReceipts,
+    approvedCards,
+    newMessages,
+  };
+};
+
+const getNotificationSummary = async () => {
+  const [messages, payments, orders] = await Promise.all([
+    Message.countDocuments({ status: 'new' }),
+    PaymentReceipt.countDocuments({ reviewStatus: 'pending' }),
+    CardOrder.countDocuments({ orderStatus: { $in: ['pending', 'waiting_payment', 'under_review'] } }),
+  ]);
+
+  return {
+    messages,
+    payments,
+    orders,
+  };
+};
+
+const getMe = async (adminId) => {
+  const admin = await Admin.findById(adminId);
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+  return sanitizeAdmin(admin);
+};
+
+const requestProfileOtp = async (currentAdmin) => {
+  const admin = await Admin.findById(currentAdmin._id);
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+
+  const deliveryEmail = getPrimaryAdminEmail(admin.email);
+  return issueCode({
+    email: deliveryEmail,
+    purpose: 'admin_change_password',
+    accountModel: 'Admin',
+    title: 'تأكيد تغيير كلمة مرور الأدمن',
+    greeting: `مرحبًا ${admin.name}،`,
+    intro: 'استخدم رمز التحقق التالي قبل حفظ كلمة المرور الجديدة الخاصة بحساب الأدمن.',
+    helpText: 'سيتم إرسال هذا الرمز إلى البريد الأساسي للإدمن المُعد داخل ملف البيئة (.env)، ولن تُرسل رسائل للأدمن إلا في حالات كلمة المرور.',
+  });
+};
+
+const updateMe = async (currentAdmin, payload, file) => {
+  const admin = await Admin.findById(currentAdmin._id).select('+passwordHash');
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+
+  const normalizedEmail = payload.email ? payload.email.toLowerCase() : undefined;
+  if (normalizedEmail && normalizedEmail !== admin.email) {
+    throw new AppError('بريد الأدمن الأساسي ثابت ويتم التحكم فيه من خلال ملف البيئة (.env).', 400);
+  }
+
+  if (payload.newPassword) {
+    if (!payload.otpCode) {
+      throw new AppError('يجب إدخال رمز التحقق المرسل إلى بريد الأدمن الأساسي قبل تغيير كلمة المرور', 400);
+    }
+    if (!payload.currentPassword) {
+      throw new AppError('أدخل كلمة المرور الحالية قبل تعيين كلمة مرور جديدة', 400);
+    }
+
+    const matched = await admin.comparePassword(payload.currentPassword);
+    if (!matched) {
+      throw new AppError('كلمة المرور الحالية غير صحيحة', 400);
+    }
+
+    await consumeCode({
+      email: getPrimaryAdminEmail(admin.email),
+      code: payload.otpCode,
+      purpose: 'admin_change_password',
+      accountModel: 'Admin',
+    });
+
+    admin.passwordHash = payload.newPassword;
+  }
+
+  if (payload.name !== undefined) {
+    admin.name = payload.name;
+  }
+
+  if (file) {
+    const uploaded = await optimizeAndUpload(file.path, 'linestart/admin-avatars');
+    if (admin.avatarPublicId) {
+      await removeFromCloudinary(admin.avatarPublicId);
+    }
+    admin.avatarUrl = uploaded.secureUrl;
+    admin.avatarPublicId = uploaded.publicId;
+  }
+
+  await admin.save();
+  return sanitizeAdmin(admin);
+};
+
+const listAdmins = async () => {
+  const data = await Admin.find().sort({ createdAt: -1 });
+  return data.map(sanitizeAdmin);
+};
+
+const createAdmin = async (currentAdmin, payload) => {
+  const exists = await Admin.findOne({ email: payload.email.toLowerCase() });
+  if (exists) {
+    throw new AppError('Admin email already exists', 409);
+  }
+
+  const admin = await Admin.create({
+    name: payload.name,
+    email: payload.email.toLowerCase(),
+    passwordHash: payload.password,
+    role: payload.role || 'admin',
+  });
+
+  await logAdminAction({
+    adminId: currentAdmin._id,
+    actionType: 'create',
+    targetTable: 'Admins',
+    targetId: admin._id,
+    notes: `Created admin ${admin.email}`,
+  });
+
+  return sanitizeAdmin(admin);
+};
+
+const updateAdmin = async (currentAdmin, adminId, payload) => {
+  const admin = await Admin.findById(adminId).select('+passwordHash');
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+
+  if (payload.name !== undefined) admin.name = payload.name;
+  if (payload.role !== undefined) admin.role = payload.role;
+  if (payload.email !== undefined && payload.email.toLowerCase() !== admin.email) {
+    const exists = await Admin.findOne({ email: payload.email.toLowerCase(), _id: { $ne: admin._id } });
+    if (exists) {
+      throw new AppError('Admin email already exists', 409);
+    }
+    admin.email = payload.email.toLowerCase();
+  }
+  if (payload.password) admin.passwordHash = payload.password;
+
+  await admin.save();
+
+  await logAdminAction({
+    adminId: currentAdmin._id,
+    actionType: 'edit',
+    targetTable: 'Admins',
+    targetId: admin._id,
+    notes: `Updated admin ${admin.email}`,
+  });
+
+  return sanitizeAdmin(admin);
+};
+
+const deleteAdmin = async (currentAdmin, adminId) => {
+  if (String(currentAdmin._id) === String(adminId)) {
+    throw new AppError('لا يمكنك حذف حساب الأدمن الحالي', 400);
+  }
+
+  const admin = await Admin.findById(adminId);
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+
+  await admin.deleteOne();
+
+  await logAdminAction({
+    adminId: currentAdmin._id,
+    actionType: 'delete',
+    targetTable: 'Admins',
+    targetId: adminId,
+    notes: `Deleted admin ${admin.email}`,
+  });
+
+  return { deleted: true };
+};
+
+const listUsers = async ({ page = 1, limit = 10, status, accountType, search }) => {
+  const parsedPage = Number(page) || 1;
+  const parsedLimit = Math.min(Number(limit) || 10, 100);
+  const skip = (parsedPage - 1) * parsedLimit;
+  const filter = {};
+
+  if (status) filter.status = status;
+  if (accountType) filter.currentPlan = accountType;
+  if (search) {
+    filter.$or = [
+      { fullName: { $regex: search, $options: 'i' } },
+      { email: { $regex: search, $options: 'i' } },
+      { phone: { $regex: search, $options: 'i' } },
+      { profileSlug: { $regex: search, $options: 'i' } },
+    ];
+  }
+
+  const [data, total] = await Promise.all([
+    User.find(filter).sort({ createdAt: -1 }).skip(skip).limit(parsedLimit),
+    User.countDocuments(filter),
+  ]);
+
+  return {
+    page: parsedPage,
+    limit: parsedLimit,
+    total,
+    pages: Math.ceil(total / parsedLimit),
+    data,
+  };
+};
+
+const updateUserStatus = async (admin, userId, { status, notes }) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  user.status = status;
+  await user.save();
+
+  const actionType = status === 'frozen' ? 'freeze' : status === 'active' ? 'unfreeze' : status === 'deleted' ? 'delete' : 'edit';
+  await logAdminAction({
+    adminId: admin._id,
+    userId: user._id,
+    actionType,
+    targetTable: 'Users',
+    targetId: user._id,
+    notes: notes || `Status changed to ${status}`,
+  });
+
+  return user;
+};
+
+const regenerateSlug = async (fullName, currentUserId) => {
+  const baseSlug = slugify(fullName, { lower: true, strict: true, trim: true }) || `user-${Date.now()}`;
+  let finalSlug = baseSlug;
+  let counter = 1;
+
+  while (await User.findOne({ profileSlug: finalSlug, _id: { $ne: currentUserId } })) {
+    finalSlug = `${baseSlug}-${counter}`;
+    counter += 1;
+  }
+
+  return finalSlug;
+};
+
+const updateUser = async (admin, userId, payload) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  if (payload.fullName !== undefined && payload.fullName !== user.fullName) {
+    user.fullName = payload.fullName;
+    user.profileSlug = await regenerateSlug(payload.fullName, user._id);
+  }
+
+  if (payload.email !== undefined && payload.email.toLowerCase() !== user.email) {
+    const exists = await User.findOne({ email: payload.email.toLowerCase(), _id: { $ne: user._id } });
+    if (exists) {
+      throw new AppError('Email already exists', 409);
+    }
+    user.email = payload.email.toLowerCase();
+  }
+
+  if (payload.phone !== undefined && payload.phone !== user.phone) {
+    const exists = await User.findOne({ phone: payload.phone, _id: { $ne: user._id } });
+    if (exists) {
+      throw new AppError('Phone already exists', 409);
+    }
+    user.phone = payload.phone;
+  }
+
+  if (payload.whatsappNumber !== undefined) user.whatsappNumber = payload.whatsappNumber || '';
+  if (payload.currentPlan !== undefined) user.currentPlan = payload.currentPlan;
+  if (payload.status !== undefined) user.status = payload.status;
+
+  await user.save();
+
+  await logAdminAction({
+    adminId: admin._id,
+    userId: user._id,
+    actionType: 'edit',
+    targetTable: 'Users',
+    targetId: user._id,
+    notes: `Updated user ${user.email}`,
+  });
+
+  return user;
+};
+
+const deleteUser = async (admin, userId) => {
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  user.status = 'deleted';
+  await user.save();
+
+  await logAdminAction({
+    adminId: admin._id,
+    userId: user._id,
+    actionType: 'delete',
+    targetTable: 'Users',
+    targetId: user._id,
+    notes: `Soft deleted user ${user.email}`,
+  });
+
+  return { deleted: true };
+};
+
+const listOrders = async ({ page = 1, limit = 10, orderStatus }) => {
+  const parsedPage = Number(page) || 1;
+  const parsedLimit = Math.min(Number(limit) || 10, 100);
+  const skip = (parsedPage - 1) * parsedLimit;
+  const filter = {};
+  if (orderStatus) filter.orderStatus = orderStatus;
+
+  const [data, total] = await Promise.all([
+    CardOrder.find(filter)
+      .populate('userId')
+      .populate('cardPlanId')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(parsedLimit),
+    CardOrder.countDocuments(filter),
+  ]);
+
+  return {
+    page: parsedPage,
+    limit: parsedLimit,
+    total,
+    pages: Math.ceil(total / parsedLimit),
+    data,
+  };
+};
+
+const listCards = async ({ page = 1, limit = 10, isActive }) => {
+  const parsedPage = Number(page) || 1;
+  const parsedLimit = Math.min(Number(limit) || 10, 100);
+  const skip = (parsedPage - 1) * parsedLimit;
+  const filter = {};
+  if (isActive !== undefined) filter.isActive = isActive === 'true';
+
+  const [data, total] = await Promise.all([
+    Card.find(filter)
+      .populate('userId')
+      .populate({ path: 'cardOrderId', populate: { path: 'cardPlanId' } })
+      .sort({ activatedAt: -1 })
+      .skip(skip)
+      .limit(parsedLimit),
+    Card.countDocuments(filter),
+  ]);
+
+  return {
+    page: parsedPage,
+    limit: parsedLimit,
+    total,
+    pages: Math.ceil(total / parsedLimit),
+    data,
+  };
+};
+
+const toggleCardStatus = async (admin, cardId, isActive) => {
+  const card = await Card.findById(cardId);
+  if (!card) {
+    throw new AppError('Card not found', 404);
+  }
+
+  card.isActive = isActive;
+  if (isActive) {
+    card.activatedAt = card.activatedAt || new Date();
+  }
+  await card.save();
+
+  await logAdminAction({
+    adminId: admin._id,
+    userId: card.userId,
+    actionType: 'edit',
+    targetTable: 'Cards',
+    targetId: card._id,
+    notes: `Card active state changed to ${isActive}`,
+  });
+
+  return card;
+};
+
+const listActions = async ({ page = 1, limit = 20 }) => {
+  const parsedPage = Number(page) || 1;
+  const parsedLimit = Math.min(Number(limit) || 20, 100);
+  const skip = (parsedPage - 1) * parsedLimit;
+
+  const [data, total] = await Promise.all([
+    AdminAction.find().populate('adminId').populate('userId').sort({ createdAt: -1 }).skip(skip).limit(parsedLimit),
+    AdminAction.countDocuments(),
+  ]);
+
+  return {
+    page: parsedPage,
+    limit: parsedLimit,
+    total,
+    pages: Math.ceil(total / parsedLimit),
+    data,
+  };
+};
+
+module.exports = {
+  login,
+  requestPasswordReset,
+  resetPassword,
+  getDashboard,
+  getNotificationSummary,
+  getMe,
+  requestProfileOtp,
+  updateMe,
+  listAdmins,
+  createAdmin,
+  updateAdmin,
+  deleteAdmin,
+  listUsers,
+  updateUserStatus,
+  updateUser,
+  deleteUser,
+  listOrders,
+  listCards,
+  toggleCardStatus,
+  listActions,
+};
