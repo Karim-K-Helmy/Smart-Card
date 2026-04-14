@@ -2,25 +2,32 @@ import { useEffect, useState } from 'react';
 import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
-import { listOrders } from '../../services/api/admin';
+import { listOrders, markAdminNotificationAsRead } from '../../services/api/admin';
 import { extractApiError, formatDate, formatMoney } from '../../utils/api';
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: '' });
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const { data } = await listOrders();
-        setOrders(data.data.data || []);
-      } catch (error) {
-        setStatus({ loading: false, error: extractApiError(error) });
-        return;
-      }
+  const load = async () => {
+    try {
+      const { data } = await listOrders();
+      setOrders(data.data.data || []);
       setStatus({ loading: false, error: '' });
+    } catch (error) {
+      setStatus({ loading: false, error: extractApiError(error) });
+    }
+  };
+
+  useEffect(() => {
+    const init = async () => {
+      await Promise.allSettled([markAdminNotificationAsRead('orders'), load()]);
+      window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'admin', key: 'orders' } }));
     };
-    load();
+
+    init();
   }, []);
 
   return (

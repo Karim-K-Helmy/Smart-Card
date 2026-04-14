@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
-import { getMyNotifications } from '../../services/api/users';
+import { getMyNotifications, markMyNotificationAsRead } from '../../services/api/users';
 import { extractApiError, formatDate } from '../../utils/api';
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
@@ -11,8 +13,12 @@ export default function NotificationsPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const { data } = await getMyNotifications();
-        setNotifications(data.data?.notices || []);
+        const [notificationsRes] = await Promise.all([
+          getMyNotifications(),
+          markMyNotificationAsRead('notifications'),
+        ]);
+        setNotifications(notificationsRes.data.data?.notices || []);
+        window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'user', key: 'notifications' } }));
         setStatus({ loading: false, error: '' });
       } catch (error) {
         setStatus({ loading: false, error: extractApiError(error) });

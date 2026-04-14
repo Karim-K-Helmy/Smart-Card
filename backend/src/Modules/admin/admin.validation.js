@@ -45,6 +45,7 @@ const userUpdateSchema = Joi.object({
     whatsappNumber: Joi.string().allow('', null),
     currentPlan: Joi.string().valid('NONE', 'STAR', 'PRO'),
     status: Joi.string().valid('active', 'pending', 'frozen', 'deleted'),
+    password: Joi.string().min(6).max(100).allow('', null),
   }).required(),
   params: Joi.object({
     userId: mongoId.required(),

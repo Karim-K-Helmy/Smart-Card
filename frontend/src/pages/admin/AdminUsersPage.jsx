@@ -3,9 +3,11 @@ import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
-import { deleteUserByAdmin, listUsers, toggleUserStatus, updateUserByAdmin } from '../../services/api/admin';
+import { deleteUserByAdmin, listUsers, markAdminNotificationAsRead, toggleUserStatus, updateUserByAdmin } from '../../services/api/admin';
 import { extractApiError, formatDate } from '../../utils/api';
 import { translateDisplayValue } from '../../utils/display';
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -24,7 +26,14 @@ export default function AdminUsersPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const init = async () => {
+      await Promise.allSettled([markAdminNotificationAsRead('users'), load()]);
+      window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'admin', key: 'users' } }));
+    };
+
+    init();
+  }, []);
 
   const updateStatus = async (userId, nextStatus) => {
     try {
@@ -44,8 +53,17 @@ export default function AdminUsersPage() {
     if (phone === null) return;
     const currentPlan = window.prompt('الخطة الحالية (NONE / STAR / PRO)', user.currentPlan || 'NONE');
     if (currentPlan === null) return;
+    const password = window.prompt('كلمة المرور الجديدة (اتركها فارغة إذا لا تريد التغيير)', '');
+    if (password === null) return;
+
     try {
-      await updateUserByAdmin(user._id, { fullName, email, phone, currentPlan });
+      await updateUserByAdmin(user._id, {
+        fullName,
+        email,
+        phone,
+        currentPlan,
+        ...(password ? { password } : {}),
+      });
       await load();
     } catch (error) {
       setStatus((prev) => ({ ...prev, error: extractApiError(error) }));
@@ -53,7 +71,7 @@ export default function AdminUsersPage() {
   };
 
   const removeUser = async (user) => {
-    if (!window.confirm(`هل تريد حذف المستخدم ${user.fullName}؟`)) return;
+    if (!window.confirm(`هل تريد حذف المستخدم ${user.fullName} نهائيًا من قاعدة البيانات؟`)) return;
     try {
       await deleteUserByAdmin(user._id);
       await load();
@@ -64,11 +82,36 @@ export default function AdminUsersPage() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="إدارة المستخدمين" text="بحث، فلترة، تعديل، تجميد أو حذف الحسابات من لوحة الأدمن." actions={<Button variant="secondary" onClick={load}>تحديث</Button>} />
+      <PageHeader
+        title="إدارة المستخدمين"
+        text="بحث، فلترة، تعديل شامل للبيانات وكلمة المرور، تجميد أو حذف نهائي للحسابات من لوحة الأدمن."
+        actions={<Button variant="secondary" onClick={load}>تحديث</Button>}
+      />
       <Card icon="fa-users">
         <div className="form-grid">
-          <label><span>بحث</span><input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="ابحث بالاسم أو البريد" /></label>
-          <label><span>الباقة</span><select value={filters.accountType} onChange={(e) => setFilters({ ...filters, accountType: e.target.value })}><option value="">الكل</option><option value="STAR">Star</option><option value="PRO">Pro</option></select></label>
+          <label>
+            <span>بحث</span>
+            <input value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value })} placeholder="ابحث بالاسم أو البريد" />
+          </label>
+          <label>
+            <span>الحالة</span>
+            <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}>
+              <option value="">الكل</option>
+              <option value="active">active</option>
+              <option value="pending">pending</option>
+              <option value="frozen">frozen</option>
+              <option value="deleted">deleted</option>
+            </select>
+          </label>
+          <label>
+            <span>الباقة</span>
+            <select value={filters.accountType} onChange={(e) => setFilters({ ...filters, accountType: e.target.value })}>
+              <option value="">الكل</option>
+              <option value="NONE">None</option>
+              <option value="STAR">Star</option>
+              <option value="PRO">Pro</option>
+            </select>
+          </label>
         </div>
         <div className="header-actions">
           <Button onClick={load}>
@@ -91,9 +134,9 @@ export default function AdminUsersPage() {
               <span>{translateDisplayValue(user.currentPlan || 'NONE')}</span>
               <span><Badge tone={user.status}>{user.status}</Badge></span>
               <span className="row-actions">
-                <Button variant="ghost" onClick={() => editUser(user)}>تعديل</Button>
+                <Button variant="ghost" onClick={() => editUser(user)}>تعديل شامل</Button>
                 {user.status !== 'frozen' ? <Button variant="secondary" onClick={() => updateStatus(user._id, 'frozen')}>تجميد</Button> : <Button onClick={() => updateStatus(user._id, 'active')}>إلغاء التجميد</Button>}
-                <Button variant="danger" onClick={() => removeUser(user)}>حذف</Button>
+                <Button variant="danger" onClick={() => removeUser(user)}>حذف نهائي</Button>
               </span>
             </div>
           ))}

@@ -15,6 +15,11 @@ const updateMessageStatus = async (req, res) => {
   res.status(200).json({ success: true, message: 'Message status updated successfully', data });
 };
 
+const deleteMessage = async (req, res) => {
+  const data = await messageService.deleteMessage(req.params.messageId);
+  res.status(200).json({ success: true, message: 'Message deleted successfully', data });
+};
+
 const replyMessage = async (req, res) => {
   const data = await messageService.replyMessage(req.admin, req.params.messageId, req.body);
   res.status(200).json({ success: true, message: 'تم إرسال الرد إلى العميل بنجاح', data });
@@ -24,5 +29,6 @@ module.exports = {
   createMessage,
   listMessages,
   updateMessageStatus,
+  deleteMessage,
   replyMessage,
 };

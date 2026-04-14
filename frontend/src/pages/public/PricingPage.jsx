@@ -7,6 +7,9 @@ import Badge from '../../components/ui/Badge';
 import { getCardPlans } from '../../services/api/cards';
 import { extractApiError, formatMoney } from '../../utils/api';
 
+const hasVisiblePrice = (price) => Number(price) > 0;
+const hasVisibleDuration = (durationDays) => Number(durationDays) > 0;
+
 export default function PricingPage() {
   const [plans, setPlans] = useState([]);
   const [error, setError] = useState('');
@@ -53,7 +56,9 @@ export default function PricingPage() {
               </div>
 
               <p>{plan.description}</p>
-              <strong className="muted">{formatMoney(plan.price)}</strong>
+
+              {hasVisiblePrice(plan.price) ? <strong className="muted">{formatMoney(plan.price)}</strong> : null}
+              {hasVisibleDuration(plan.durationDays) ? <small className="muted">{plan.durationDays} يوم</small> : null}
 
               <ul className="feature-list">
                 {(plan.features || []).map((feature) => (

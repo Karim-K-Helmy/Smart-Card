@@ -67,6 +67,16 @@ const updateMessageStatus = async (messageId, status) => {
   return message;
 };
 
+const deleteMessage = async (messageId) => {
+  const message = await Message.findById(messageId);
+  if (!message) {
+    throw new AppError('Message not found', 404);
+  }
+
+  await message.deleteOne();
+  return { deleted: true };
+};
+
 const replyMessage = async (admin, messageId, payload) => {
   const message = await Message.findById(messageId);
   if (!message) {
@@ -96,5 +106,6 @@ module.exports = {
   createMessage,
   listMessages,
   updateMessageStatus,
+  deleteMessage,
   replyMessage,
 };

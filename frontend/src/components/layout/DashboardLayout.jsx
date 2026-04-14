@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAdminNotificationSummary } from '../../services/api/admin';
@@ -21,7 +21,7 @@ const userNav = [
 
 const adminNav = [
   { to: '/admin', label: 'الرئيسية', icon: 'fa-chart-column' },
-  { to: '/admin/users', label: 'المستخدمون', icon: 'fa-users' },
+  { to: '/admin/users', label: 'المستخدمون', icon: 'fa-users', badgeKey: 'users' },
   { to: '/admin/orders', label: 'الطلبات', icon: 'fa-clipboard-list', badgeKey: 'orders' },
   { to: '/admin/payments', label: 'المدفوعات', icon: 'fa-money-bill-wave', badgeKey: 'payments' },
   { to: '/admin/cards', label: 'البطاقات', icon: 'fa-id-card' },
@@ -29,6 +29,8 @@ const adminNav = [
   { to: '/admin/actions', label: 'سجل العمليات', icon: 'fa-clipboard-check' },
   { to: '/admin/settings', label: 'الإعدادات', icon: 'fa-gears' },
 ];
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 const getInitials = (name) =>
   String(name || 'LS')
@@ -49,23 +51,48 @@ export default function DashboardLayout({ area }) {
   const userName = authState.user?.fullName || authState.user?.name || 'LineStart';
   const userEmail = authState.user?.email || '';
 
-  useEffect(() => {
-    const loadBadges = async () => {
-      try {
-        if (area === 'admin') {
-          const { data } = await getAdminNotificationSummary();
-          setCounts(data.data || {});
-        } else {
-          const { data } = await getMyNotifications();
-          setCounts(data.data?.counts || {});
-        }
-      } catch {
-        setCounts({});
+  const refreshBadges = useCallback(async () => {
+    try {
+      if (area === 'admin') {
+        const { data } = await getAdminNotificationSummary();
+        setCounts(data.data?.counts || {});
+      } else {
+        const { data } = await getMyNotifications();
+        setCounts(data.data?.counts || {});
       }
+    } catch {
+      setCounts({});
+    }
+  }, [area]);
+
+  useEffect(() => {
+    refreshBadges();
+  }, [refreshBadges]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      refreshBadges();
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [refreshBadges]);
+
+  useEffect(() => {
+    const handleBadgeSync = (event) => {
+      const detail = event.detail || {};
+      if (detail.area !== area || !detail.key) return;
+
+      setCounts((prev) => ({
+        ...prev,
+        [detail.key]: 0,
+      }));
+
+      refreshBadges();
     };
 
-    loadBadges();
-  }, [area]);
+    window.addEventListener(BADGE_SYNC_EVENT, handleBadgeSync);
+    return () => window.removeEventListener(BADGE_SYNC_EVENT, handleBadgeSync);
+  }, [area, refreshBadges]);
 
   useEffect(() => {
     setSidebarOpen(false);

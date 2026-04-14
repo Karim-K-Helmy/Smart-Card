@@ -196,7 +196,7 @@ export default function AdminSettingsPage() {
         name: plan.name,
         description: plan.description,
         price: Number(plan.price || 0),
-        durationDays: Number(plan.durationDays || 30),
+        durationDays: Number(plan.durationDays || 0),
         features: plan.featuresText
           .split('\n')
           .map((item) => item.trim())
@@ -276,7 +276,7 @@ export default function AdminSettingsPage() {
   const editAdmin = async (admin) => {
     const name = window.prompt('اسم الأدمن', admin.name || '');
     if (name === null) return;
-    const email = window.prompt('البريد الإلكتروني', admin.email || '');
+    const email = admin.isPrimaryAdmin ? admin.email : window.prompt('البريد الإلكتروني', admin.email || '');
     if (email === null) return;
     const role = window.prompt('الدور', admin.role || 'admin');
     if (role === null) return;
@@ -381,13 +381,13 @@ export default function AdminSettingsPage() {
                   <label><span>السعر</span><input type="number" min="0" value={plan.price} onChange={(e) => updatePlanField(plan._id, 'price', e.target.value)} /></label>
                 </div>
                 <div className="form-grid">
-                  <label><span>مدة الصلاحية بالأيام</span><input type="number" min="1" value={plan.durationDays} onChange={(e) => updatePlanField(plan._id, 'durationDays', e.target.value)} /></label>
+                  <label><span>مدة الصلاحية بالأيام</span><input type="number" min="0" value={plan.durationDays} onChange={(e) => updatePlanField(plan._id, 'durationDays', e.target.value)} /></label>
                   <label><span>الوصف</span><input value={plan.description} onChange={(e) => updatePlanField(plan._id, 'description', e.target.value)} /></label>
                 </div>
                 <label><span>المميزات (كل سطر ميزة)</span><textarea rows="4" value={plan.featuresText} onChange={(e) => updatePlanField(plan._id, 'featuresText', e.target.value)} /></label>
                 <div className="row-line compact-row-line">
                   <strong>المعاينة الحالية</strong>
-                  <span>{formatMoney(plan.price)} / {plan.durationDays} يوم</span>
+                  <span>{Number(plan.price) > 0 ? formatMoney(plan.price) : 'بدون سعر ظاهر'} {Number(plan.durationDays) > 0 ? `/ ${plan.durationDays} يوم` : ''}</span>
                 </div>
                 <Button onClick={() => savePlan(plan)} disabled={plansStatus.savingId === plan._id}>
                   {plansStatus.savingId === plan._id ? 'جارٍ حفظ الباقة...' : `حفظ ${plan.planCode}`}
@@ -459,7 +459,7 @@ export default function AdminSettingsPage() {
                 <div key={admin._id} className="row-line admin-row-card">
                   <div>
                     <strong>{admin.name}</strong>
-                    <p className="muted">{admin.email}</p>
+                    <p className="muted">{admin.email}</p>{admin.isPrimaryAdmin ? <Badge tone="info">Primary</Badge> : null}
                   </div>
                   <div className="row-actions align-end">
                     <Badge tone="info">{admin.role}</Badge>

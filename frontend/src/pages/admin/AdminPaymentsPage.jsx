@@ -3,8 +3,11 @@ import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import { markAdminNotificationAsRead } from '../../services/api/admin';
 import { listAdminReceipts, reviewReceipt } from '../../services/api/payments';
 import { extractApiError, formatDate, formatMoney } from '../../utils/api';
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState([]);
@@ -20,7 +23,14 @@ export default function AdminPaymentsPage() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    const init = async () => {
+      await Promise.allSettled([markAdminNotificationAsRead('payments'), load()]);
+      window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'admin', key: 'payments' } }));
+    };
+
+    init();
+  }, []);
 
   const handleReview = async (receiptId, reviewStatus) => {
     const reviewNote = window.prompt('اكتب ملاحظة المراجعة', reviewStatus === 'approved' ? 'تمت الموافقة' : 'تم الرفض');

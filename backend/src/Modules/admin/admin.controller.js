@@ -21,8 +21,18 @@ const dashboard = async (req, res) => {
 };
 
 const notificationSummary = async (req, res) => {
-  const data = await adminService.getNotificationSummary();
+  const data = await adminService.getNotificationSummary(req.admin._id);
   res.status(200).json({ success: true, message: 'Notification summary fetched successfully', data });
+};
+
+const getNotificationCount = async (req, res) => {
+  const data = await adminService.getNotificationCount(req.admin._id, req.params.type);
+  res.status(200).json({ success: true, message: 'Notification count fetched successfully', data });
+};
+
+const markNotificationAsRead = async (req, res) => {
+  const data = await adminService.markNotificationAsRead(req.admin._id, req.params.type);
+  res.status(200).json({ success: true, message: 'Notification marked as read successfully', data });
 };
 
 const getMe = async (req, res) => {
@@ -106,6 +116,8 @@ module.exports = {
   resetPassword,
   dashboard,
   notificationSummary,
+  getNotificationCount,
+  markNotificationAsRead,
   getMe,
   requestProfileOtp,
   updateMe,

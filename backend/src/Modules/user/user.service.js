@@ -201,6 +201,14 @@ const resendActivation = async (email) => {
   throw new AppError('رسالة التفعيل تُرسل مرة واحدة فقط عند إنشاء الحساب لأول مرة، ولا يمكن إعادة إرسالها.', 403);
 };
 
+const requestLoginCode = async () => {
+  throw new AppError('تم إيقاف تسجيل الدخول بالكود. استخدم البريد الإلكتروني أو رقم الهاتف مع كلمة المرور.', 410);
+};
+
+const verifyLoginCode = async () => {
+  throw new AppError('تم إيقاف تسجيل الدخول بالكود. استخدم البريد الإلكتروني أو رقم الهاتف مع كلمة المرور.', 410);
+};
+
 const login = async ({ emailOrPhone, password }) => {
   const user = await User.findOne({
     $or: [{ email: emailOrPhone.toLowerCase() }, { phone: emailOrPhone }],
@@ -287,81 +295,126 @@ const getMyProfile = async (userId) => {
   return buildProfileResponse(user);
 };
 
-const getMyNotifications = async (currentUser) => {
-  const [orders, receipts, card] = await Promise.all([
-    CardOrder.find({ userId: currentUser._id }).populate('cardPlanId').sort({ createdAt: -1 }).limit(5),
-    PaymentReceipt.find({ userId: currentUser._id }).populate('paymentMethodId').sort({ createdAt: -1 }).limit(5),
-    Card.findOne({ userId: currentUser._id }).sort({ activatedAt: -1 }),
+const USER_NOTIFICATION_TYPES = ['orders', 'notifications'];
+
+const ensureValidUserNotificationType = (type) => {
+  if (!USER_NOTIFICATION_TYPES.includes(type)) {
+    throw new AppError('Unsupported notification type', 400);
+  }
+};
+
+const getUserWithNotificationState = async (currentUser) => {
+  const user = await User.findById(currentUser._id);
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+  if (!user.notificationSeenAt) {
+    user.notificationSeenAt = {};
+  }
+  return user;
+};
+
+const buildOrderNotice = (latestOrder) => {
+  if (!latestOrder) return null;
+
+  const orderMap = {
+    waiting_payment: {
+      title: 'طلبك يحتاج رفع إيصال الدفع',
+      text: `تم إنشاء طلب باقة ${latestOrder.cardPlanId?.name || ''} وبانتظار الدفع.`,
+      status: 'warning',
+    },
+    under_review: {
+      title: 'إيصال الدفع تحت المراجعة',
+      text: 'تم استلام إيصال الدفع وجارٍ مراجعته من الإدارة.',
+      status: 'info',
+    },
+    approved: {
+      title: 'تم اعتماد طلب البطاقة',
+      text: `تمت الموافقة على طلب ${latestOrder.cardPlanId?.name || 'البطاقة'} ويمكنك الآن استخدام البطاقة.`,
+      status: 'success',
+    },
+    rejected: {
+      title: 'تم رفض الإيصال',
+      text: 'تم رفض إيصال الدفع الأخير. راجع الطلب وأعد الرفع بصورة أوضح.',
+      status: 'danger',
+    },
+    pending: {
+      title: 'تم استلام الطلب',
+      text: 'طلبك تم تسجيله داخل النظام.',
+      status: 'info',
+    },
+  };
+
+  return {
+    id: `order-${latestOrder._id}`,
+    createdAt: latestOrder.updatedAt || latestOrder.createdAt,
+    ...(orderMap[latestOrder.orderStatus] || {
+      title: 'تحديث على طلبك',
+      text: 'هناك تحديث جديد على طلب البطاقة.',
+      status: 'info',
+    }),
+  };
+};
+
+const buildReceiptNotice = (latestReceipt) => {
+  if (!latestReceipt) return null;
+
+  const receiptMap = {
+    pending: 'تم استلام صورة الإيصال وهي بانتظار المراجعة.',
+    approved: 'تمت الموافقة على إيصال الدفع بنجاح.',
+    rejected: latestReceipt.reviewNote || 'تم رفض إيصال الدفع الأخير.',
+  };
+
+  return {
+    id: `receipt-${latestReceipt._id}`,
+    title: 'حالة إيصال الدفع',
+    text: receiptMap[latestReceipt.reviewStatus] || 'هناك تحديث على إيصال الدفع.',
+    status: latestReceipt.reviewStatus === 'approved' ? 'success' : latestReceipt.reviewStatus === 'rejected' ? 'danger' : 'warning',
+    createdAt: latestReceipt.createdAt,
+  };
+};
+
+const buildCardNotice = (card) => {
+  if (!card?.isActive) return null;
+
+  return {
+    id: `card-${card._id}`,
+    title: 'بطاقتك مفعلة',
+    text: `كود البطاقة: ${card.cardCode}. الرابط جاهز للمشاركة.`,
+    status: 'success',
+    createdAt: card.activatedAt || card.createdAt || new Date(),
+  };
+};
+
+const buildUserNotificationPayload = async (currentUser) => {
+  const user = await getUserWithNotificationState(currentUser);
+  const [orders, receipts, card, orderUnreadCount, receiptUnreadCount, latestUnreadOrder, latestUnreadReceipt, latestCard] = await Promise.all([
+    CardOrder.find({ userId: user._id }).populate('cardPlanId').sort({ createdAt: -1 }).limit(5),
+    PaymentReceipt.find({ userId: user._id }).populate('paymentMethodId').sort({ createdAt: -1 }).limit(5),
+    Card.findOne({ userId: user._id }).sort({ activatedAt: -1, createdAt: -1 }),
+    CardOrder.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.orders ? { updatedAt: { $gt: user.notificationSeenAt.orders } } : {}) }),
+    PaymentReceipt.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) }),
+    CardOrder.findOne({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { updatedAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
+      .populate('cardPlanId')
+      .sort({ updatedAt: -1, createdAt: -1 }),
+    PaymentReceipt.findOne({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
+      .populate('paymentMethodId')
+      .sort({ createdAt: -1 }),
+    Card.findOne({ userId: user._id, isActive: true, ...(user.notificationSeenAt?.notifications ? { activatedAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
+      .sort({ activatedAt: -1, createdAt: -1 }),
   ]);
 
   const notices = [];
   const latestOrder = orders[0];
   const latestReceipt = receipts[0];
 
-  if (latestOrder) {
-    const orderMap = {
-      waiting_payment: {
-        title: 'طلبك يحتاج رفع إيصال الدفع',
-        text: `تم إنشاء طلب باقة ${latestOrder.cardPlanId?.name || ''} وبانتظار الدفع.`,
-        status: 'warning',
-      },
-      under_review: {
-        title: 'إيصال الدفع تحت المراجعة',
-        text: 'تم استلام إيصال الدفع وجارٍ مراجعته من الإدارة.',
-        status: 'info',
-      },
-      approved: {
-        title: 'تم اعتماد طلب البطاقة',
-        text: `تمت الموافقة على طلب ${latestOrder.cardPlanId?.name || 'البطاقة'} ويمكنك الآن استخدام البطاقة.`,
-        status: 'success',
-      },
-      rejected: {
-        title: 'تم رفض الإيصال',
-        text: 'تم رفض إيصال الدفع الأخير. راجع الطلب وأعد الرفع بصورة أوضح.',
-        status: 'danger',
-      },
-      pending: {
-        title: 'تم استلام الطلب',
-        text: 'طلبك تم تسجيله داخل النظام.',
-        status: 'info',
-      },
-    };
+  const orderNotice = buildOrderNotice(latestOrder);
+  const receiptNotice = buildReceiptNotice(latestReceipt);
+  const cardNotice = buildCardNotice(card);
 
-    notices.push({
-      id: `order-${latestOrder._id}`,
-      createdAt: latestOrder.createdAt,
-      ...(orderMap[latestOrder.orderStatus] || {
-        title: 'تحديث على طلبك',
-        text: 'هناك تحديث جديد على طلب البطاقة.',
-        status: 'info',
-      }),
-    });
-  }
-
-  if (latestReceipt) {
-    const receiptMap = {
-      pending: 'تم استلام صورة الإيصال وهي بانتظار المراجعة.',
-      approved: 'تمت الموافقة على إيصال الدفع بنجاح.',
-      rejected: latestReceipt.reviewNote || 'تم رفض إيصال الدفع الأخير.',
-    };
-    notices.push({
-      id: `receipt-${latestReceipt._id}`,
-      title: 'حالة إيصال الدفع',
-      text: receiptMap[latestReceipt.reviewStatus] || 'هناك تحديث على إيصال الدفع.',
-      status: latestReceipt.reviewStatus === 'approved' ? 'success' : latestReceipt.reviewStatus === 'rejected' ? 'danger' : 'warning',
-      createdAt: latestReceipt.createdAt,
-    });
-  }
-
-  if (card?.isActive) {
-    notices.push({
-      id: `card-${card._id}`,
-      title: 'بطاقتك مفعلة',
-      text: `كود البطاقة: ${card.cardCode}. الرابط جاهز للمشاركة.`,
-      status: 'success',
-      createdAt: card.activatedAt || new Date(),
-    });
-  }
+  if (orderNotice) notices.push(orderNotice);
+  if (receiptNotice) notices.push(receiptNotice);
+  if (cardNotice) notices.push(cardNotice);
 
   if (!notices.length) {
     notices.push({
@@ -373,12 +426,63 @@ const getMyNotifications = async (currentUser) => {
     });
   }
 
+  const unreadNotificationDates = [
+    latestUnreadOrder?.updatedAt || latestUnreadOrder?.createdAt || null,
+    latestUnreadReceipt?.createdAt || null,
+    latestCard?.activatedAt || latestCard?.createdAt || null,
+  ]
+    .filter(Boolean)
+    .map((item) => new Date(item))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b - a);
+
+  const validNoticeDates = notices
+    .filter((item) => item.id !== 'empty-notice' && item.createdAt)
+    .map((item) => new Date(item.createdAt))
+    .filter((date) => !Number.isNaN(date.getTime()))
+    .sort((a, b) => b - a);
+
   return {
     counts: {
-      orders: orders.filter((item) => ['pending', 'waiting_payment', 'under_review'].includes(item.orderStatus)).length,
-      notifications: notices.length,
+      orders: orderUnreadCount,
+      notifications: orderUnreadCount + receiptUnreadCount + (latestCard ? 1 : 0),
+    },
+    latestAt: {
+      orders: latestOrder?.updatedAt || latestOrder?.createdAt || null,
+      notifications: unreadNotificationDates[0] || null,
+    },
+    seenAt: {
+      orders: user.notificationSeenAt?.orders || null,
+      notifications: user.notificationSeenAt?.notifications || null,
     },
     notices,
+  };
+};
+
+const getMyNotifications = async (currentUser) => buildUserNotificationPayload(currentUser);
+
+const getMyNotificationCount = async (currentUser, type) => {
+  ensureValidUserNotificationType(type);
+  const payload = await buildUserNotificationPayload(currentUser);
+  return {
+    type,
+    count: payload.counts?.[type] || 0,
+    latestAt: payload.latestAt?.[type] || null,
+    seenAt: payload.seenAt?.[type] || null,
+  };
+};
+
+const markMyNotificationAsRead = async (currentUser, type) => {
+  ensureValidUserNotificationType(type);
+  const user = await getUserWithNotificationState(currentUser);
+  user.notificationSeenAt[type] = new Date();
+  user.markModified('notificationSeenAt');
+  await user.save();
+
+  return {
+    type,
+    seenAt: user.notificationSeenAt[type],
+    count: 0,
   };
 };
 
@@ -625,12 +729,16 @@ module.exports = {
   register,
   verifyActivation,
   resendActivation,
+  requestLoginCode,
+  verifyLoginCode,
   login,
   forgotPassword,
   resetPassword,
   requestSensitiveOtp,
   getMyProfile,
   getMyNotifications,
+  getMyNotificationCount,
+  markMyNotificationAsRead,
   updateProfile,
   changePassword,
   createProduct,

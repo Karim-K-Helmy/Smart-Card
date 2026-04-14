@@ -15,6 +15,16 @@ const resendActivation = async (req, res) => {
   res.status(200).json({ success: true, message: 'تم إرسال كود تفعيل جديد', data });
 };
 
+const requestLoginCode = async (req, res) => {
+  const data = await userService.requestLoginCode(req.body);
+  res.status(200).json({ success: true, message: 'تم إرسال كود تسجيل الدخول', data });
+};
+
+const verifyLoginCode = async (req, res) => {
+  const data = await userService.verifyLoginCode(req.body);
+  res.status(200).json({ success: true, message: 'تم تسجيل الدخول بنجاح', data });
+};
+
 // تسجيل الدخول العادي بالإيميل والباسورد
 const login = async (req, res) => {
   const data = await userService.login(req.body);
@@ -44,6 +54,16 @@ const getMyProfile = async (req, res) => {
 const getMyNotifications = async (req, res) => {
   const data = await userService.getMyNotifications(req.user);
   res.status(200).json({ success: true, message: 'Notifications fetched successfully', data });
+};
+
+const getMyNotificationCount = async (req, res) => {
+  const data = await userService.getMyNotificationCount(req.user, req.params.type);
+  res.status(200).json({ success: true, message: 'Notification count fetched successfully', data });
+};
+
+const markMyNotificationAsRead = async (req, res) => {
+  const data = await userService.markMyNotificationAsRead(req.user, req.params.type);
+  res.status(200).json({ success: true, message: 'Notification marked as read successfully', data });
 };
 
 const updateProfile = async (req, res) => {
@@ -85,12 +105,16 @@ module.exports = {
   register,
   verifyActivation,
   resendActivation,
+  requestLoginCode,
+  verifyLoginCode,
   login,
   forgotPassword,
   resetPassword,
   requestSensitiveOtp,
   getMyProfile,
   getMyNotifications,
+  getMyNotificationCount,
+  markMyNotificationAsRead,
   updateProfile,
   changePassword,
   createProduct,

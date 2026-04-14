@@ -38,6 +38,24 @@ const adminSchema = new mongoose.Schema(
       default: 'admin',
       maxlength: 50,
     },
+    notificationSeenAt: {
+      messages: {
+        type: Date,
+        default: null,
+      },
+      orders: {
+        type: Date,
+        default: null,
+      },
+      users: {
+        type: Date,
+        default: null,
+      },
+      payments: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   { timestamps: { createdAt: true, updatedAt: true } }
 );

@@ -2,6 +2,8 @@ import http from '../http';
 
 export const getDashboard = () => http.get('/admin/dashboard');
 export const getAdminNotificationSummary = () => http.get('/admin/notifications/summary');
+export const getAdminNotificationCount = (type) => http.get(`/admin/notifications/${type}/count`);
+export const markAdminNotificationAsRead = (type) => http.patch(`/admin/notifications/${type}/read`);
 export const getAdminMe = () => http.get('/admin/me');
 export const requestAdminProfileOtp = () => http.post('/admin/me/request-otp');
 export const updateAdminMe = (payload) => http.put('/admin/me', payload, {

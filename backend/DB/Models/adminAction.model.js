@@ -16,7 +16,7 @@ const adminActionSchema = new mongoose.Schema(
     },
     actionType: {
       type: String,
-      enum: ['freeze', 'unfreeze', 'edit', 'delete', 'approve_payment', 'reject_payment'],
+      enum: ['create', 'freeze', 'unfreeze', 'edit', 'delete', 'approve_payment', 'reject_payment'],
       required: true,
     },
     targetTable: {

@@ -24,6 +24,14 @@ const updateMessageStatusSchema = Joi.object({
   query: Joi.object({}),
 });
 
+const deleteMessageSchema = Joi.object({
+  body: Joi.object({}),
+  params: Joi.object({
+    messageId: mongoId.required(),
+  }).required(),
+  query: Joi.object({}),
+});
+
 const replyMessageSchema = Joi.object({
   body: Joi.object({
     replyText: Joi.string().min(2).max(5000).required(),
@@ -38,5 +46,6 @@ const replyMessageSchema = Joi.object({
 module.exports = {
   createMessageSchema,
   updateMessageStatusSchema,
+  deleteMessageSchema,
   replyMessageSchema,
 };

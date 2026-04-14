@@ -37,11 +37,21 @@ const deleteEntitySchema = Joi.object({
   query: Joi.object({}),
 });
 
+const notificationTypeSchema = Joi.object({
+  body: Joi.object({}),
+  params: Joi.object({
+    type: Joi.string().valid('messages', 'orders', 'users', 'payments').required(),
+  }).required(),
+  query: Joi.object({}),
+});
+
 router.post('/login', validate(loginSchema), asyncHandler(controller.login));
 router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(controller.forgotPassword));
 router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(controller.resetPassword));
 router.get('/dashboard', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.dashboard));
 router.get('/notifications/summary', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.notificationSummary));
+router.get('/notifications/:type/count', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.getNotificationCount));
+router.patch('/notifications/:type/read', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.markNotificationAsRead));
 router.get('/me', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.getMe));
 router.post('/me/request-otp', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.requestProfileOtp));
 router.put('/me', auth, allowTo('admin', 'super_admin'), uploadSingle('avatar'), validate(adminProfileUpdateSchema), asyncHandler(controller.updateMe));

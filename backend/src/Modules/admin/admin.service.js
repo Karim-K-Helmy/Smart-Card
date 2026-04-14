@@ -22,6 +22,11 @@ const getConfiguredAdminEmails = (fallbackEmail = '') => {
 
 const getPrimaryAdminEmail = (fallbackEmail = '') => getConfiguredAdminEmails(fallbackEmail)[0] || '';
 
+const isPrimaryAdminEmail = (email = '') => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  return normalizedEmail && normalizedEmail === getPrimaryAdminEmail(normalizedEmail);
+};
+
 const findConfiguredAdmin = async ({ fallbackEmail = '', selectPassword = false } = {}) => {
   const candidates = getConfiguredAdminEmails(fallbackEmail);
   for (const candidate of candidates) {
@@ -43,7 +48,101 @@ const sanitizeAdmin = (admin) => {
   delete object.avatarPublicId;
   delete object.__v;
   object.primaryEmail = getPrimaryAdminEmail(object.email || '');
+  object.isPrimaryAdmin = isPrimaryAdminEmail(object.email || '');
   return object;
+};
+
+const ADMIN_NOTIFICATION_TYPES = ['messages', 'orders', 'users', 'payments'];
+
+const ensureValidNotificationType = (type) => {
+  if (!ADMIN_NOTIFICATION_TYPES.includes(type)) {
+    throw new AppError('Unsupported notification type', 400);
+  }
+};
+
+const getAdminOrFail = async (adminId) => {
+  const admin = await Admin.findById(adminId);
+  if (!admin) {
+    throw new AppError('Admin not found', 404);
+  }
+  if (!admin.notificationSeenAt) {
+    admin.notificationSeenAt = {};
+  }
+  return admin;
+};
+
+const buildUnreadFilter = (baseFilter, seenAt, dateField = 'createdAt') => ({
+  ...baseFilter,
+  ...(seenAt ? { [dateField]: { $gt: seenAt } } : {}),
+});
+
+const getNotificationSummary = async (adminId) => {
+  const admin = await getAdminOrFail(adminId);
+  const seenAt = admin.notificationSeenAt || {};
+
+  const filters = {
+    messages: buildUnreadFilter({ status: 'new' }, seenAt.messages),
+    orders: buildUnreadFilter({ orderStatus: { $in: ['pending', 'waiting_payment', 'under_review'] } }, seenAt.orders),
+    users: buildUnreadFilter({}, seenAt.users),
+    payments: buildUnreadFilter({ reviewStatus: 'pending' }, seenAt.payments),
+  };
+
+  const [messages, orders, users, payments, latestMessage, latestOrder, latestUser, latestPayment] = await Promise.all([
+    Message.countDocuments(filters.messages),
+    CardOrder.countDocuments(filters.orders),
+    User.countDocuments(filters.users),
+    PaymentReceipt.countDocuments(filters.payments),
+    Message.findOne(filters.messages).sort({ createdAt: -1 }).select('createdAt'),
+    CardOrder.findOne(filters.orders).sort({ createdAt: -1 }).select('createdAt'),
+    User.findOne(filters.users).sort({ createdAt: -1 }).select('createdAt'),
+    PaymentReceipt.findOne(filters.payments).sort({ createdAt: -1 }).select('createdAt'),
+  ]);
+
+  return {
+    counts: {
+      messages,
+      orders,
+      users,
+      payments,
+    },
+    latestAt: {
+      messages: latestMessage?.createdAt || null,
+      orders: latestOrder?.createdAt || null,
+      users: latestUser?.createdAt || null,
+      payments: latestPayment?.createdAt || null,
+    },
+    seenAt: {
+      messages: seenAt.messages || null,
+      orders: seenAt.orders || null,
+      users: seenAt.users || null,
+      payments: seenAt.payments || null,
+    },
+  };
+};
+
+const getNotificationCount = async (adminId, type) => {
+  ensureValidNotificationType(type);
+  const summary = await getNotificationSummary(adminId);
+  return {
+    type,
+    count: summary.counts?.[type] || 0,
+    latestAt: summary.latestAt?.[type] || null,
+    seenAt: summary.seenAt?.[type] || null,
+  };
+};
+
+const markNotificationAsRead = async (adminId, type) => {
+  ensureValidNotificationType(type);
+  const admin = await getAdminOrFail(adminId);
+  admin.notificationSeenAt[type] = new Date();
+  admin.markModified('notificationSeenAt');
+  await admin.save();
+
+  return {
+    type,
+    seenAt: admin.notificationSeenAt[type],
+    count: 0,
+  };
 };
 
 const login = async ({ email, password }) => {
@@ -116,7 +215,6 @@ const resetPassword = async (code, newPassword) => {
 };
 
 const getDashboard = async () => {
-
   const [users, starUsers, proUsers, orders, pendingReceipts, approvedCards, newMessages] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ currentPlan: 'STAR' }),
@@ -135,20 +233,6 @@ const getDashboard = async () => {
     pendingReceipts,
     approvedCards,
     newMessages,
-  };
-};
-
-const getNotificationSummary = async () => {
-  const [messages, payments, orders] = await Promise.all([
-    Message.countDocuments({ status: 'new' }),
-    PaymentReceipt.countDocuments({ reviewStatus: 'pending' }),
-    CardOrder.countDocuments({ orderStatus: { $in: ['pending', 'waiting_payment', 'under_review'] } }),
-  ]);
-
-  return {
-    messages,
-    payments,
-    orders,
   };
 };
 
@@ -264,16 +348,26 @@ const updateAdmin = async (currentAdmin, adminId, payload) => {
     throw new AppError('Admin not found', 404);
   }
 
+  const targetIsPrimary = isPrimaryAdminEmail(admin.email);
+
   if (payload.name !== undefined) admin.name = payload.name;
-  if (payload.role !== undefined) admin.role = payload.role;
+  if (payload.role !== undefined && !targetIsPrimary) admin.role = payload.role;
+
   if (payload.email !== undefined && payload.email.toLowerCase() !== admin.email) {
+    if (targetIsPrimary) {
+      throw new AppError('لا يمكن تغيير البريد الإلكتروني للمدير الأساسي لأنه ثابت في ملف البيئة (.env).', 400);
+    }
+
     const exists = await Admin.findOne({ email: payload.email.toLowerCase(), _id: { $ne: admin._id } });
     if (exists) {
       throw new AppError('Admin email already exists', 409);
     }
     admin.email = payload.email.toLowerCase();
   }
-  if (payload.password) admin.passwordHash = payload.password;
+
+  if (payload.password) {
+    admin.passwordHash = payload.password;
+  }
 
   await admin.save();
 
@@ -296,6 +390,10 @@ const deleteAdmin = async (currentAdmin, adminId) => {
   const admin = await Admin.findById(adminId);
   if (!admin) {
     throw new AppError('Admin not found', 404);
+  }
+
+  if (isPrimaryAdminEmail(admin.email)) {
+    throw new AppError('لا يمكن حذف المدير الأساسي المحدد في ملف البيئة (.env).', 400);
   }
 
   await admin.deleteOne();
@@ -378,7 +476,7 @@ const regenerateSlug = async (fullName, currentUserId) => {
 };
 
 const updateUser = async (admin, userId, payload) => {
-  const user = await User.findById(userId);
+  const user = await User.findById(userId).select('+passwordHash');
   if (!user) {
     throw new AppError('User not found', 404);
   }
@@ -407,6 +505,7 @@ const updateUser = async (admin, userId, payload) => {
   if (payload.whatsappNumber !== undefined) user.whatsappNumber = payload.whatsappNumber || '';
   if (payload.currentPlan !== undefined) user.currentPlan = payload.currentPlan;
   if (payload.status !== undefined) user.status = payload.status;
+  if (payload.password) user.passwordHash = payload.password;
 
   await user.save();
 
@@ -428,16 +527,15 @@ const deleteUser = async (admin, userId) => {
     throw new AppError('User not found', 404);
   }
 
-  user.status = 'deleted';
-  await user.save();
+  await user.deleteOne();
 
   await logAdminAction({
     adminId: admin._id,
-    userId: user._id,
+    userId: userId,
     actionType: 'delete',
     targetTable: 'Users',
     targetId: user._id,
-    notes: `Soft deleted user ${user.email}`,
+    notes: `Hard deleted user ${user.email}`,
   });
 
   return { deleted: true };
@@ -519,14 +617,44 @@ const toggleCardStatus = async (admin, cardId, isActive) => {
   return card;
 };
 
-const listActions = async ({ page = 1, limit = 20 }) => {
+const listActions = async ({ page = 1, limit = 20, actionType, adminId, fromDate, toDate, adminName }) => {
   const parsedPage = Number(page) || 1;
   const parsedLimit = Math.min(Number(limit) || 20, 100);
   const skip = (parsedPage - 1) * parsedLimit;
 
+  const filter = {};
+
+  if (actionType) {
+    filter.actionType = actionType;
+  }
+
+  if (adminId) {
+    filter.adminId = adminId;
+  }
+
+  if (fromDate || toDate) {
+    filter.createdAt = {};
+    if (fromDate) {
+      filter.createdAt.$gte = new Date(fromDate);
+    }
+    if (toDate) {
+      const endDate = new Date(toDate);
+      endDate.setHours(23, 59, 59, 999);
+      filter.createdAt.$lte = endDate;
+    }
+  }
+
+  if (adminName) {
+    const admins = await Admin.find({
+      name: { $regex: adminName, $options: 'i' },
+    }).select('_id');
+
+    filter.adminId = { $in: admins.map((item) => item._id) };
+  }
+
   const [data, total] = await Promise.all([
-    AdminAction.find().populate('adminId').populate('userId').sort({ createdAt: -1 }).skip(skip).limit(parsedLimit),
-    AdminAction.countDocuments(),
+    AdminAction.find(filter).populate('adminId').populate('userId').sort({ createdAt: -1 }).skip(skip).limit(parsedLimit),
+    AdminAction.countDocuments(filter),
   ]);
 
   return {
@@ -540,6 +668,8 @@ const listActions = async ({ page = 1, limit = 20 }) => {
 
 module.exports = {
   login,
+  requestLoginCode,
+  verifyLoginCode,
   requestPasswordReset,
   resetPassword,
   getDashboard,

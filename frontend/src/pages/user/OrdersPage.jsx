@@ -5,8 +5,11 @@ import Badge from '../../components/ui/Badge';
 import StatusTimeline from '../../components/common/StatusTimeline';
 import { getMyOrders } from '../../services/api/cards';
 import { listMyReceipts } from '../../services/api/payments';
+import { markMyNotificationAsRead } from '../../services/api/users';
 import { extractApiError, formatDate, formatMoney } from '../../utils/api';
 import { translateDisplayValue } from '../../utils/display';
+
+const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState([]);
@@ -16,9 +19,14 @@ export default function OrdersPage() {
   useEffect(() => {
     const load = async () => {
       try {
-        const [ordersRes, receiptsRes] = await Promise.all([getMyOrders(), listMyReceipts()]);
+        const [ordersRes, receiptsRes] = await Promise.all([
+          getMyOrders(),
+          listMyReceipts(),
+          markMyNotificationAsRead('orders'),
+        ]);
         setOrders(ordersRes.data.data || []);
         setReceipts(receiptsRes.data.data || []);
+        window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'user', key: 'orders' } }));
       } catch (error) {
         setStatus({ loading: false, error: extractApiError(error) });
         return;

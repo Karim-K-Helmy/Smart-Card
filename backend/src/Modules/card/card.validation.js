@@ -9,7 +9,7 @@ const createPlanSchema = Joi.object({
     description: Joi.string().allow('', null),
     features: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.string()).required(),
     price: Joi.number().min(0).required(),
-    durationDays: Joi.number().integer().min(1).required(),
+    durationDays: Joi.number().integer().min(0).required(),
     isActive: Joi.boolean().default(true),
   }).required(),
   params: Joi.object({}),
@@ -22,7 +22,7 @@ const updatePlanSchema = Joi.object({
     description: Joi.string().allow('', null),
     features: Joi.alternatives().try(Joi.array().items(Joi.string()), Joi.string()),
     price: Joi.number().min(0),
-    durationDays: Joi.number().integer().min(1),
+    durationDays: Joi.number().integer().min(0),
     isActive: Joi.boolean(),
   }).required(),
   params: Joi.object({

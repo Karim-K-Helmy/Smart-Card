@@ -90,6 +90,16 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    notificationSeenAt: {
+      orders: {
+        type: Date,
+        default: null,
+      },
+      notifications: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,

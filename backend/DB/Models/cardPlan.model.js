@@ -26,13 +26,13 @@ const cardPlanSchema = new mongoose.Schema(
     },
     price: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
     },
     durationDays: {
       type: Number,
-      required: true,
-      min: 1,
+      default: 0,
+      min: 0,
     },
     isActive: {
       type: Boolean,
