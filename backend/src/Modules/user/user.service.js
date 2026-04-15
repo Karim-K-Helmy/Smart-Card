@@ -9,9 +9,8 @@ const CardOrder = require('../../../DB/Models/cardOrder.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
 const Card = require('../../../DB/Models/card.model');
 const { AppError } = require('../../utils/errorhandling');
-const { signUserToken } = require('../../services/token.service');
+const { signUserToken, signPasswordResetToken, verifyPasswordResetToken } = require('../../services/token.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
-const { issueCode, consumeCode } = require('../../services/verification.service');
 
 const sanitizeUser = (user) => {
   const object = user.toObject ? user.toObject() : { ...user };
@@ -111,12 +110,9 @@ const buildProfileResponse = async (userDoc) => {
   };
 };
 
-const ensureActiveVerifiedUser = (user) => {
+const ensureActiveUser = (user) => {
   if (!user) {
     throw new AppError('User not found', 404);
-  }
-  if (!user.emailVerified || user.status === 'pending') {
-    throw new AppError('يرجى تفعيل الحساب أولاً من خلال البريد الإلكتروني', 403);
   }
   if (['deleted', 'frozen'].includes(user.status)) {
     throw new AppError('This account is not allowed to login', 403);
@@ -141,8 +137,9 @@ const register = async (payload) => {
     passwordHash: payload.password,
     currentPlan: 'NONE',
     profileSlug,
-    status: 'pending',
-    emailVerified: false,
+    status: 'active',
+    emailVerified: true,
+    emailVerifiedAt: new Date(),
   });
 
   await Promise.all([
@@ -150,36 +147,6 @@ const register = async (payload) => {
     BusinessProfile.create({ userId: user._id }),
   ]);
 
-  const activation = await issueCode({
-    email: user.email,
-    purpose: 'activate_account',
-    accountModel: 'User',
-    title: 'تفعيل حسابك في LineStart',
-    greeting: `مرحبًا ${user.fullName}،`,
-    intro: 'شكرًا لتسجيلك معنا. استخدم رمز التفعيل التالي لإكمال إنشاء الحساب وتفعيل الوصول إلى لوحة المستخدم.',
-    helpText: 'رسالة التفعيل تُرسل مرة واحدة فقط عند إنشاء الحساب لأول مرة، لذلك احتفظ بهذا الرمز حتى تنتهي عملية التفعيل.',
-  });
-
-  user.activationEmailSentAt = new Date();
-  user.activationEmailSentCount = 1;
-  await user.save();
-
-  return {
-    user: sanitizeUser(user),
-    activation,
-  };
-};
-
-const verifyActivation = async (email, code) => {
-  await consumeCode({ email, code, purpose: 'activate_account', accountModel: 'User' });
-  const user = await User.findOne({ email: email.toLowerCase() });
-  if (!user) {
-    throw new AppError('User not found', 404);
-  }
-
-  user.emailVerified = true;
-  user.emailVerifiedAt = new Date();
-  user.status = 'active';
   user.lastLoginAt = new Date();
   await user.save();
 
@@ -189,27 +156,8 @@ const verifyActivation = async (email, code) => {
   };
 };
 
-const resendActivation = async (email) => {
-  const user = await User.findOne({ email: email.toLowerCase() });
-  if (!user) {
-    throw new AppError('User not found', 404);
-  }
-  if (user.emailVerified) {
-    throw new AppError('هذا الحساب مفعل بالفعل', 409);
-  }
-
-  throw new AppError('رسالة التفعيل تُرسل مرة واحدة فقط عند إنشاء الحساب لأول مرة، ولا يمكن إعادة إرسالها.', 403);
-};
-
-const requestLoginCode = async () => {
-  throw new AppError('تم إيقاف تسجيل الدخول بالكود. استخدم البريد الإلكتروني أو رقم الهاتف مع كلمة المرور.', 410);
-};
-
-const verifyLoginCode = async () => {
-  throw new AppError('تم إيقاف تسجيل الدخول بالكود. استخدم البريد الإلكتروني أو رقم الهاتف مع كلمة المرور.', 410);
-};
-
 const login = async ({ emailOrPhone, password }) => {
+
   const user = await User.findOne({
     $or: [{ email: emailOrPhone.toLowerCase() }, { phone: emailOrPhone }],
   }).select('+passwordHash');
@@ -218,7 +166,7 @@ const login = async ({ emailOrPhone, password }) => {
     throw new AppError('Invalid credentials', 401);
   }
 
-  ensureActiveVerifiedUser(user);
+  ensureActiveUser(user);
 
   const matched = await user.comparePassword(password);
   if (!matched) {
@@ -234,60 +182,50 @@ const login = async ({ emailOrPhone, password }) => {
   };
 };
 
-const forgotPassword = async (email) => {
-  const user = await User.findOne({ email: email.toLowerCase() });
+const forgotPassword = async (email, phone) => {
+  const user = await User.findOne({ email: email.toLowerCase(), phone });
   if (!user) {
-    throw new AppError('User not found', 404);
+    throw new AppError('البريد الإلكتروني أو رقم الهاتف غير مطابقين لبيانات الحساب', 404);
   }
 
-  return issueCode({
-    email: user.email,
-    purpose: 'reset_password',
-    accountModel: 'User',
-    title: 'إعادة تعيين كلمة المرور',
-    greeting: `مرحبًا ${user.fullName}،`,
-    intro: 'وصلنا طلب لإعادة تعيين كلمة المرور الخاصة بحسابك. استخدم رمز التحقق التالي لإكمال العملية.',
-    helpText: 'إذا لم تطلب إعادة تعيين كلمة المرور، يمكنك تجاهل الرسالة ولن يتم تغيير أي شيء على حسابك.',
-  });
+  ensureActiveUser(user);
+
+  return {
+    resetToken: signPasswordResetToken({
+      id: user._id,
+      email: user.email,
+      phone: user.phone,
+      role: 'user',
+      accountModel: 'User',
+    }),
+  };
 };
 
-const resetPassword = async (email, code, newPassword) => {
-  await consumeCode({ email, code, purpose: 'reset_password', accountModel: 'User' });
-  const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash');
+const resetPassword = async (email, resetToken, newPassword) => {
+  const decoded = verifyPasswordResetToken(resetToken);
+  if (decoded.accountModel !== 'User' || decoded.role !== 'user') {
+    throw new AppError('Invalid password reset token', 401);
+  }
+
+  const normalizedEmail = email.toLowerCase();
+  if (decoded.email !== normalizedEmail) {
+    throw new AppError('Invalid password reset token', 401);
+  }
+
+  const user = await User.findOne({ _id: decoded.id, email: normalizedEmail, phone: decoded.phone }).select('+passwordHash');
   if (!user) {
     throw new AppError('User not found', 404);
   }
 
+  ensureActiveUser(user);
   user.passwordHash = newPassword;
   await user.save();
 
   return { changed: true };
 };
 
-const requestSensitiveOtp = async (currentUser, purpose) => {
-  const user = await User.findById(currentUser._id);
-  if (!user) {
-    throw new AppError('User not found', 404);
-  }
-
-  return issueCode({
-    email: user.email,
-    purpose,
-    accountModel: 'User',
-    title: purpose === 'change_password' ? 'تأكيد تغيير كلمة المرور' : 'تأكيد تعديل بيانات الحساب',
-    greeting: `مرحبًا ${user.fullName}،`,
-    intro:
-      purpose === 'change_password'
-        ? 'استخدم رمز التحقق التالي لإتمام تغيير كلمة المرور بأمان.'
-        : 'استخدم رمز التحقق التالي لتأكيد تعديل بيانات حسابك.',
-    helpText:
-      purpose === 'change_password'
-        ? 'تم إرسال هذا الرمز لحماية حسابك قبل اعتماد كلمة المرور الجديدة.'
-        : 'لن يتم حفظ التعديلات الحساسة على الحساب قبل إدخال هذا الرمز بشكل صحيح.',
-  });
-};
-
 const getMyProfile = async (userId) => {
+
   const user = await User.findById(userId);
   if (!user) {
     throw new AppError('User not found', 404);
@@ -495,24 +433,6 @@ const updateProfile = async (currentUser, payload, files) => {
   const socialLinks = normalizeSocialLinks(payload.socialLinks);
   const normalizedEmail = payload.email ? payload.email.toLowerCase() : undefined;
 
-  const accountFieldsChanged = [
-    payload.fullName !== undefined && payload.fullName !== user.fullName,
-    normalizedEmail !== undefined && normalizedEmail !== user.email,
-    payload.phone !== undefined && payload.phone !== user.phone,
-    payload.whatsappNumber !== undefined && String(payload.whatsappNumber || '') !== String(user.whatsappNumber || ''),
-  ].some(Boolean);
-
-  if (accountFieldsChanged) {
-    if (!payload.otpCode) {
-      throw new AppError('يجب إدخال كود التأكيد المرسل إلى بريدك الإلكتروني قبل حفظ البيانات', 400);
-    }
-    await consumeCode({
-      email: user.email,
-      code: payload.otpCode,
-      purpose: 'update_profile',
-      accountModel: 'User',
-    });
-  }
 
   if (payload.fullName && payload.fullName !== user.fullName) {
     user.profileSlug = await generateUniqueSlug(payload.fullName, user._id);
@@ -580,7 +500,7 @@ const updateProfile = async (currentUser, payload, files) => {
   return buildProfileResponse(user);
 };
 
-const changePassword = async (currentUser, currentPassword, newPassword, otpCode) => {
+const changePassword = async (currentUser, currentPassword, newPassword) => {
   const user = await User.findById(currentUser._id).select('+passwordHash');
   if (!user) {
     throw new AppError('User not found', 404);
@@ -591,13 +511,6 @@ const changePassword = async (currentUser, currentPassword, newPassword, otpCode
     throw new AppError('Current password is incorrect', 400);
   }
 
-  await consumeCode({
-    email: user.email,
-    code: otpCode,
-    purpose: 'change_password',
-    accountModel: 'User',
-  });
-
   user.passwordHash = newPassword;
   await user.save();
 
@@ -605,6 +518,7 @@ const changePassword = async (currentUser, currentPassword, newPassword, otpCode
 };
 
 const ensureProUser = (user) => {
+
   if (user.currentPlan !== 'PRO') {
     throw new AppError('Works are available for PRO plan only', 403);
   }
@@ -727,14 +641,9 @@ const getPublicProfile = async (slug) => {
 
 module.exports = {
   register,
-  verifyActivation,
-  resendActivation,
-  requestLoginCode,
-  verifyLoginCode,
   login,
   forgotPassword,
   resetPassword,
-  requestSensitiveOtp,
   getMyProfile,
   getMyNotifications,
   getMyNotificationCount,

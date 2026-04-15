@@ -7,14 +7,9 @@ const { uploadFields } = require('../../services/MulterLocally');
 const controller = require('./user.controller');
 const {
   registerSchema,
-  verifyActivationSchema,
-  resendActivationSchema,
-  requestLoginCodeSchema,
-  verifyLoginCodeSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  requestSensitiveOtpSchema,
   updateProfileSchema,
   changePasswordSchema,
   createProductSchema,
@@ -40,14 +35,9 @@ const notificationTypeSchema = Joi.object({
 });
 
 router.post('/register', validate(registerSchema), asyncHandler(controller.register));
-router.post('/register/verify', validate(verifyActivationSchema), asyncHandler(controller.verifyActivation));
-router.post('/register/resend', validate(resendActivationSchema), asyncHandler(controller.resendActivation));
-router.post('/login/request-code', validate(requestLoginCodeSchema), asyncHandler(controller.requestLoginCode));
-router.post('/login/verify-code', validate(verifyLoginCodeSchema), asyncHandler(controller.verifyLoginCode));
 router.post('/login', validate(loginSchema), asyncHandler(controller.login));
 router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(controller.forgotPassword));
 router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(controller.resetPassword));
-router.post('/request-otp', auth, validate(requestSensitiveOtpSchema), asyncHandler(controller.requestSensitiveOtp));
 router.get('/profile', auth, asyncHandler(controller.getMyProfile));
 router.get('/notifications', auth, asyncHandler(controller.getMyNotifications));
 router.get('/notifications/:type/count', auth, validate(notificationTypeSchema), asyncHandler(controller.getMyNotificationCount));

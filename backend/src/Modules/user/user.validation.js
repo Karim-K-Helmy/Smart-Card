@@ -14,40 +14,6 @@ const registerSchema = Joi.object({
   query: Joi.object({}),
 });
 
-const verifyActivationSchema = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    code: Joi.string().length(6).required(),
-  }).required(),
-  params: Joi.object({}),
-  query: Joi.object({}),
-});
-
-const resendActivationSchema = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-  }).required(),
-  params: Joi.object({}),
-  query: Joi.object({}),
-});
-
-const requestLoginCodeSchema = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-  }).required(),
-  params: Joi.object({}),
-  query: Joi.object({}),
-});
-
-const verifyLoginCodeSchema = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    code: Joi.string().length(6).required(),
-  }).required(),
-  params: Joi.object({}),
-  query: Joi.object({}),
-});
-
 const loginSchema = Joi.object({
   body: Joi.object({
     emailOrPhone: Joi.string().required(),
@@ -60,6 +26,7 @@ const loginSchema = Joi.object({
 const forgotPasswordSchema = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),
+    phone: Joi.string().min(6).max(20).required(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -68,16 +35,8 @@ const forgotPasswordSchema = Joi.object({
 const resetPasswordSchema = Joi.object({
   body: Joi.object({
     email: Joi.string().email().required(),
-    code: Joi.string().length(6).required(),
+    resetToken: Joi.string().required(),
     newPassword: Joi.string().min(6).max(100).required(),
-  }).required(),
-  params: Joi.object({}),
-  query: Joi.object({}),
-});
-
-const requestSensitiveOtpSchema = Joi.object({
-  body: Joi.object({
-    purpose: Joi.string().valid('update_profile', 'change_password').required(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -89,9 +48,17 @@ const updateProfileSchema = Joi.object({
     email: Joi.string().email(),
     phone: Joi.string().min(6).max(20),
     whatsappNumber: Joi.string().allow('', null),
-    bio: Joi.string().allow('', null),
-    otpCode: Joi.string().length(6).allow('', null),
-    socialLinks: Joi.alternatives().try(Joi.array(), Joi.string()),
+    bio: Joi.string().max(2000).allow('', null),
+    socialLinks: Joi.alternatives().try(
+      Joi.array().items(
+        Joi.object({
+          platformName: Joi.string().required(),
+          url: Joi.string().uri().required(),
+          sortOrder: Joi.number().integer().min(0),
+        })
+      ),
+      Joi.string()
+    ),
     jobTitle: Joi.string().allow('', null),
     aboutText: Joi.string().allow('', null),
     birthDate: Joi.date().iso().allow('', null),
@@ -109,7 +76,6 @@ const changePasswordSchema = Joi.object({
   body: Joi.object({
     currentPassword: Joi.string().required(),
     newPassword: Joi.string().min(6).max(100).required(),
-    otpCode: Joi.string().length(6).required(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -161,14 +127,9 @@ const publicProfileSchema = Joi.object({
 
 module.exports = {
   registerSchema,
-  verifyActivationSchema,
-  resendActivationSchema,
-  requestLoginCodeSchema,
-  verifyLoginCodeSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  requestSensitiveOtpSchema,
   updateProfileSchema,
   changePasswordSchema,
   createProductSchema,

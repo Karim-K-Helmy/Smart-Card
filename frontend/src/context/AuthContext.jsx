@@ -10,12 +10,12 @@ const initialState = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || 
 };
 
 function normalizeUser(user) {
-  if (!user) return null;
+  if (!user || typeof user !== 'object') return null;
 
   const currentPlan = user.currentPlan || user.accountType || 'NONE';
 
   return {
-    _id: user._id,
+    _id: user._id || user.id || '',
     fullName: user.fullName || user.name || 'LineStart User',
     name: user.name || user.fullName || 'LineStart User',
     email: user.primaryEmail || user.email || '',
@@ -41,17 +41,17 @@ export function AuthProvider({ children }) {
 
   const loginAsUser = (payload) => {
     save({
-      token: payload.token,
+      token: payload?.token || '',
       role: 'user',
-      user: normalizeUser(payload.user),
+      user: normalizeUser(payload?.user),
     });
   };
 
   const loginAsAdmin = (payload) => {
     save({
-      token: payload.token,
+      token: payload?.token || '',
       role: 'admin',
-      user: normalizeUser(payload.admin),
+      user: normalizeUser(payload?.admin),
     });
   };
 

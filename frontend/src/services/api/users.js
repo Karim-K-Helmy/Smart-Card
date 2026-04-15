@@ -4,7 +4,6 @@ export const getMyProfile = () => http.get('/users/profile');
 export const getMyNotifications = () => http.get('/users/notifications');
 export const getMyNotificationCount = (type) => http.get(`/users/notifications/${type}/count`);
 export const markMyNotificationAsRead = (type) => http.patch(`/users/notifications/${type}/read`);
-export const requestUserOtp = (payload) => http.post('/users/request-otp', payload);
 export const updateProfile = (payload) => http.put('/users/profile', payload, {
   headers: { 'Content-Type': 'multipart/form-data' },
 });

@@ -6,7 +6,7 @@ const iconRules = [
   { match: ['تواصل', 'اتصل', 'contact', 'رسائل', 'message'], icon: 'fa-envelope-open-text' },
   { match: ['الأسئلة الشائعة', 'faq', 'سؤال', 'question'], icon: 'fa-question' },
   { match: ['تسجيل الدخول', 'دخول', 'login'], icon: 'fa-sign-in-alt' },
-  { match: ['استعادة', 'نسيت', 'otp', 'reset', 'كلمة المرور'], icon: 'fa-key' },
+  { match: ['استعادة', 'نسيت', 'reset', 'كلمة المرور'], icon: 'fa-key' },
   { match: ['إنشاء حساب', 'register', 'حساب جديد'], icon: 'fa-user-plus' },
   { match: ['الحساب', 'الأمان', 'المصادقة', 'security'], icon: 'fa-shield-halved' },
   { match: ['البروفايل الشخصي', 'الملف الشخصي', 'شخصي'], icon: 'fa-user-large' },

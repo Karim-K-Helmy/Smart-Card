@@ -5,7 +5,6 @@ export const getAdminNotificationSummary = () => http.get('/admin/notifications/
 export const getAdminNotificationCount = (type) => http.get(`/admin/notifications/${type}/count`);
 export const markAdminNotificationAsRead = (type) => http.patch(`/admin/notifications/${type}/read`);
 export const getAdminMe = () => http.get('/admin/me');
-export const requestAdminProfileOtp = () => http.post('/admin/me/request-otp');
 export const updateAdminMe = (payload) => http.put('/admin/me', payload, {
   headers: { 'Content-Type': 'multipart/form-data' },
 });

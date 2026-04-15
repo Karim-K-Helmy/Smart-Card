@@ -7,12 +7,12 @@ const login = async (req, res) => {
 
 const forgotPassword = async (req, res) => {
   const data = await adminService.requestPasswordReset();
-  res.status(200).json({ success: true, message: 'تم إرسال رمز إعادة تعيين كلمة مرور الأدمن', data });
+  res.status(200).json({ success: true, message: 'تم إيقاف استعادة كلمة مرور الأدمن من هذه الواجهة', data });
 };
 
 const resetPassword = async (req, res) => {
   const data = await adminService.resetPassword(req.body.code, req.body.newPassword);
-  res.status(200).json({ success: true, message: 'تم تحديث كلمة مرور الأدمن بنجاح', data });
+  res.status(200).json({ success: true, message: 'تم إيقاف إعادة تعيين كلمة مرور الأدمن من هذه الواجهة', data });
 };
 
 const dashboard = async (req, res) => {
@@ -38,11 +38,6 @@ const markNotificationAsRead = async (req, res) => {
 const getMe = async (req, res) => {
   const data = await adminService.getMe(req.admin._id);
   res.status(200).json({ success: true, message: 'Admin profile fetched successfully', data });
-};
-
-const requestProfileOtp = async (req, res) => {
-  const data = await adminService.requestProfileOtp(req.admin);
-  res.status(200).json({ success: true, message: 'تم إرسال رمز تغيير كلمة المرور إلى بريد الأدمن الأساسي', data });
 };
 
 const updateMe = async (req, res) => {
@@ -119,7 +114,6 @@ module.exports = {
   getNotificationCount,
   markNotificationAsRead,
   getMe,
-  requestProfileOtp,
   updateMe,
   listAdmins,
   createAdmin,

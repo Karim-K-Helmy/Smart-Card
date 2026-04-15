@@ -16,7 +16,6 @@ const userNav = [
   { to: '/dashboard/orders', label: 'الطلبات', icon: 'fa-clipboard-list', badgeKey: 'orders' },
   { to: '/dashboard/my-card', label: 'بطاقتي', icon: 'fa-id-badge' },
   { to: '/dashboard/notifications', label: 'الإشعارات', icon: 'fa-bell', badgeKey: 'notifications' },
-  { to: '/dashboard/settings', label: 'الإعدادات', icon: 'fa-gears' },
 ];
 
 const adminNav = [

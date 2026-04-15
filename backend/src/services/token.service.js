@@ -23,6 +23,20 @@ const signAdminToken = (admin) =>
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
   );
 
+const signPasswordResetToken = ({ id, email, role, accountModel, phone }) =>
+  jwt.sign(
+    {
+      id,
+      email,
+      role,
+      accountModel,
+      phone,
+      purpose: 'password_reset',
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: process.env.PASSWORD_RESET_TOKEN_EXPIRES_IN || '15m' }
+  );
+
 const verifyToken = (token) => {
   try {
     return jwt.verify(token, process.env.JWT_SECRET);
@@ -31,8 +45,18 @@ const verifyToken = (token) => {
   }
 };
 
+const verifyPasswordResetToken = (token) => {
+  const decoded = verifyToken(token);
+  if (decoded.purpose !== 'password_reset') {
+    throw new AppError('Invalid password reset token', 401);
+  }
+  return decoded;
+};
+
 module.exports = {
   signUserToken,
   signAdminToken,
+  signPasswordResetToken,
   verifyToken,
+  verifyPasswordResetToken,
 };

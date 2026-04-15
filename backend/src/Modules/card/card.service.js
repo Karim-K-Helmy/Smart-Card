@@ -4,8 +4,6 @@ const Card = require('../../../DB/Models/card.model');
 const User = require('../../../DB/Models/user.model');
 const PaymentMethod = require('../../../DB/Models/paymentMethod.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
-const PersonalProfile = require('../../../DB/Models/personalProfile.model');
-const BusinessProfile = require('../../../DB/Models/businessProfile.model');
 const { AppError } = require('../../utils/errorhandling');
 const { optimizeAndUpload } = require('../../services/MulterLocally');
 
@@ -93,19 +91,6 @@ const createOrder = async (user, payload) => {
   });
 };
 
-const updateProfilesFromCheckout = async (userId, payload) => {
-  const personalProfile = (await PersonalProfile.findOne({ userId })) || new PersonalProfile({ userId });
-  const businessProfile = (await BusinessProfile.findOne({ userId })) || new BusinessProfile({ userId });
-
-  if (payload.jobTitle !== undefined) personalProfile.jobTitle = payload.jobTitle || '';
-  if (payload.aboutText !== undefined) personalProfile.aboutText = payload.aboutText || '';
-  if (payload.businessName !== undefined) businessProfile.businessName = payload.businessName || '';
-  if (payload.businessDescription !== undefined) businessProfile.businessDescription = payload.businessDescription || '';
-  if (payload.address !== undefined) businessProfile.address = payload.address || '';
-
-  await Promise.all([personalProfile.save(), businessProfile.save()]);
-};
-
 const checkout = async (currentUser, payload, file) => {
   if (!file) {
     throw new AppError('Receipt image is required', 400);
@@ -125,7 +110,6 @@ const checkout = async (currentUser, payload, file) => {
   }
 
   await ensureNoOpenOrder(user._id);
-  await updateProfilesFromCheckout(user._id, payload);
 
   const order = await CardOrder.create({
     userId: user._id,

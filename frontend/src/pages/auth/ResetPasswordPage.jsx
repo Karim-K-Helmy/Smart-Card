@@ -9,8 +9,8 @@ export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialEmail = useMemo(() => searchParams.get('email') || '', [searchParams]);
-  const initialDevCode = useMemo(() => searchParams.get('devCode') || '', [searchParams]);
-  const [form, setForm] = useState({ email: initialEmail, code: '', newPassword: '', confirmPassword: '' });
+  const initialResetToken = useMemo(() => searchParams.get('resetToken') || '', [searchParams]);
+  const [form, setForm] = useState({ email: initialEmail, resetToken: initialResetToken, newPassword: '', confirmPassword: '' });
   const [status, setStatus] = useState({ loading: false, error: '', success: '' });
 
   const handleSubmit = async (e) => {
@@ -26,7 +26,7 @@ export default function ResetPasswordPage() {
 
     setStatus({ loading: true, error: '', success: '' });
     try {
-      await resetPassword({ email: form.email, code: form.code, newPassword: form.newPassword });
+      await resetPassword({ email: form.email, resetToken: form.resetToken, newPassword: form.newPassword });
       setStatus({ loading: false, error: '', success: 'تم تغيير كلمة المرور. يمكنك الآن تسجيل الدخول.' });
       setTimeout(() => navigate('/auth/login', { replace: true }), 400);
     } catch (apiError) {
@@ -39,16 +39,14 @@ export default function ResetPasswordPage() {
       <Card className="auth-card" title="تعيين كلمة مرور جديدة">
         <form className="form-card" onSubmit={handleSubmit}>
           <label><span>البريد الإلكتروني</span><input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-          <label><span>كود التحقق</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required maxLength={6} /></label>
-          {initialDevCode ? <p className="muted">كود التطوير: <strong>{initialDevCode}</strong></p> : null}
           <label><span>كلمة المرور الجديدة</span><input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} required /></label>
           <label><span>تأكيد كلمة المرور</span><input type="password" value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} required /></label>
           {status.error ? <p className="error-text">{status.error}</p> : null}
           {status.success ? <p className="success-text">{status.success}</p> : null}
-          <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ الحفظ...' : 'حفظ'}</Button>
+          <Button type="submit" disabled={status.loading || !form.resetToken}>{status.loading ? 'جارٍ الحفظ...' : 'حفظ كلمة المرور الجديدة'}</Button>
         </form>
         <div className="auth-links">
-          <Link to="/auth/login">العودة لتسجيل الدخول</Link>
+          <Link to="/auth/forgot-password">العودة لخطوة التحقق</Link>
         </div>
       </Card>
     </section>

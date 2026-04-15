@@ -5,7 +5,6 @@ import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { checkoutCard, getCardPlans } from '../../services/api/cards';
 import { listPaymentMethods } from '../../services/api/payments';
-import { getMyProfile } from '../../services/api/users';
 import { extractApiError, formatMoney, toFormData } from '../../utils/api';
 
 export default function RequestCardPage() {
@@ -22,26 +21,19 @@ export default function RequestCardPage() {
     transferDate: '',
     notes: '',
     note: '',
-    jobTitle: '',
-    aboutText: '',
-    businessName: '',
-    businessDescription: '',
-    address: '',
     receiptImage: null,
   });
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [plansRes, methodsRes, profileRes] = await Promise.all([
+        const [plansRes, methodsRes] = await Promise.all([
           getCardPlans(),
           listPaymentMethods(),
-          getMyProfile(),
         ]);
 
         const fetchedPlans = (plansRes.data.data || []).filter((plan) => ['STAR', 'PRO'].includes(plan.planCode));
         const fetchedMethods = methodsRes.data.data || [];
-        const profile = profileRes.data.data || {};
 
         setPlans(fetchedPlans);
         setMethods(fetchedMethods);
@@ -50,11 +42,6 @@ export default function RequestCardPage() {
           cardPlanId: fetchedPlans[0]?._id || '',
           paymentMethodId: fetchedMethods[0]?._id || '',
           transferredAmount: fetchedPlans[0]?.price || '',
-          jobTitle: profile.personalProfile?.jobTitle || '',
-          aboutText: profile.personalProfile?.aboutText || '',
-          businessName: profile.businessProfile?.businessName || '',
-          businessDescription: profile.businessProfile?.businessDescription || '',
-          address: profile.businessProfile?.address || '',
         }));
       } catch (error) {
         setStatus((prev) => ({ ...prev, error: extractApiError(error) }));
@@ -66,6 +53,7 @@ export default function RequestCardPage() {
   }, []);
 
   const selectedPlan = useMemo(() => plans.find((plan) => plan._id === form.cardPlanId) || null, [plans, form.cardPlanId]);
+  const hasVisiblePrice = Number(selectedPlan?.price || 0) > 0;
 
   useEffect(() => {
     if (selectedPlan) {
@@ -86,11 +74,6 @@ export default function RequestCardPage() {
         transferDate: form.transferDate,
         notes: form.notes,
         note: form.note,
-        jobTitle: form.jobTitle,
-        aboutText: form.aboutText,
-        businessName: form.businessName,
-        businessDescription: form.businessDescription,
-        address: form.address,
         receiptImage: form.receiptImage,
       });
       await checkoutCard(payload);
@@ -105,32 +88,36 @@ export default function RequestCardPage() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="طلب البطاقة الموحد" text="اختر Star أو Pro، ثم أكمل بيانات البطاقة وارفع إيصال الدفع من نفس النموذج." />
+      <PageHeader title="طلب البطاقة الموحد" text="اختر Star أو Pro، ثم أكمل بيانات الدفع وارفع إيصال الدفع من نفس النموذج." />
       {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
       <form className="stack-lg" onSubmit={handleSubmit}>
         <div className="grid grid-2">
-          <Card title="1) اختيار الباقة">
+          <Card title="اختيار الباقة">
             <div className="stack-md">
-              {plans.map((plan) => (
-                <label key={plan._id} className={`select-card ${form.cardPlanId === plan._id ? 'select-card-active' : ''}`}>
-                  <input
-                    type="radio"
-                    name="cardPlanId"
-                    value={plan._id}
-                    checked={form.cardPlanId === plan._id}
-                    onChange={() => setForm((prev) => ({ ...prev, cardPlanId: plan._id, transferredAmount: plan.price }))}
-                  />
-                  <div>
-                    <strong>{plan.name}</strong>
-                    <p>{plan.description}</p>
-                    <small>{formatMoney(plan.price)} / {plan.durationDays} يوم</small>
-                  </div>
-                </label>
-              ))}
+              {plans.map((plan) => {
+                const planHasVisiblePrice = Number(plan.price || 0) > 0;
+
+                return (
+                  <label key={plan._id} className={`select-card ${form.cardPlanId === plan._id ? 'select-card-active' : ''}`}>
+                    <input
+                      type="radio"
+                      name="cardPlanId"
+                      value={plan._id}
+                      checked={form.cardPlanId === plan._id}
+                      onChange={() => setForm((prev) => ({ ...prev, cardPlanId: plan._id, transferredAmount: plan.price }))}
+                    />
+                    <div>
+                      <strong>{plan.name}</strong>
+                      <p>{plan.description}</p>
+                      {planHasVisiblePrice ? <small>{formatMoney(plan.price)}</small> : null}
+                    </div>
+                  </label>
+                );
+              })}
               {!plans.length && !status.loading ? <p>لا توجد باقات حالياً.</p> : null}
             </div>
           </Card>
-          <Card title="2) وسيلة الدفع والإيصال">
+          <Card title="وسيلة الدفع والإيصال">
             <div className="form-card">
               <label><span>وسيلة الدفع</span><select value={form.paymentMethodId} onChange={(e) => setForm({ ...form, paymentMethodId: e.target.value })}>{methods.map((method) => <option key={method._id} value={method._id}>{method.methodName} - {method.phoneNumber}</option>)}</select></label>
               <div className="form-grid">
@@ -138,7 +125,7 @@ export default function RequestCardPage() {
                 <label><span>رقم المحول</span><input required value={form.senderPhone} onChange={(e) => setForm({ ...form, senderPhone: e.target.value })} /></label>
               </div>
               <div className="form-grid">
-                <label><span>المبلغ المحول</span><input required type="number" min="0" value={form.transferredAmount} onChange={(e) => setForm({ ...form, transferredAmount: e.target.value })} /></label>
+                {hasVisiblePrice ? <label><span>المبلغ المحول</span><input required type="number" min="0" value={form.transferredAmount} onChange={(e) => setForm({ ...form, transferredAmount: e.target.value })} /></label> : null}
                 <label><span>تاريخ التحويل</span><input type="date" value={form.transferDate} onChange={(e) => setForm({ ...form, transferDate: e.target.value })} /></label>
               </div>
               <label><span>صورة الإيصال</span><input type="file" required onChange={(e) => setForm({ ...form, receiptImage: e.target.files?.[0] || null })} /></label>
@@ -148,24 +135,13 @@ export default function RequestCardPage() {
         </div>
 
         <div className="grid grid-2">
-          <Card title="3) بيانات البطاقة">
-            <div className="form-card">
-              <div className="form-grid">
-                <label><span>المسمى الوظيفي</span><input value={form.jobTitle} onChange={(e) => setForm({ ...form, jobTitle: e.target.value })} /></label>
-                <label><span>اسم النشاط التجاري</span><input value={form.businessName} onChange={(e) => setForm({ ...form, businessName: e.target.value })} /></label>
-              </div>
-              <label><span>نبذة تعريفية</span><textarea rows="4" value={form.aboutText} onChange={(e) => setForm({ ...form, aboutText: e.target.value })} /></label>
-              <label><span>وصف النشاط التجاري</span><textarea rows="4" value={form.businessDescription} onChange={(e) => setForm({ ...form, businessDescription: e.target.value })} /></label>
-              <label><span>العنوان</span><input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
-            </div>
-          </Card>
-          <Card title="4) ملاحظات الطلب">
+          <Card title="ملاحظات الطلب">
             <div className="form-card">
               <label><span>ملاحظات إضافية للأدمن</span><textarea rows="5" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="أي تعليمات إضافية بخصوص البطاقة أو التفعيل" /></label>
               <div className="notice-card notice-info">
                 <strong>مراجعة سريعة</strong>
                 <p>الباقة المختارة: {selectedPlan?.name || '-'}</p>
-                <p>القيمة المطلوبة: {selectedPlan ? formatMoney(selectedPlan.price) : '-'}</p>
+                {hasVisiblePrice ? <p>القيمة المطلوبة: {formatMoney(selectedPlan.price)}</p> : null}
                 <p>سيتم إرسال الطلب بالكامل مرة واحدة إلى لوحة الأدمن.</p>
               </div>
             </div>

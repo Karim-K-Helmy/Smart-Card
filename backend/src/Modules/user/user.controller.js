@@ -2,48 +2,22 @@ const userService = require('./user.service');
 
 const register = async (req, res) => {
   const data = await userService.register(req.body);
-  res.status(201).json({ success: true, message: 'تم إنشاء الحساب وإرسال كود التفعيل إلى البريد الإلكتروني', data });
+  res.status(201).json({ success: true, message: 'تم إنشاء الحساب وتفعيله مباشرة', data });
 };
 
-const verifyActivation = async (req, res) => {
-  const data = await userService.verifyActivation(req.body.email, req.body.code);
-  res.status(200).json({ success: true, message: 'تم تفعيل الحساب بنجاح', data });
-};
-
-const resendActivation = async (req, res) => {
-  const data = await userService.resendActivation(req.body.email);
-  res.status(200).json({ success: true, message: 'تم إرسال كود تفعيل جديد', data });
-};
-
-const requestLoginCode = async (req, res) => {
-  const data = await userService.requestLoginCode(req.body);
-  res.status(200).json({ success: true, message: 'تم إرسال كود تسجيل الدخول', data });
-};
-
-const verifyLoginCode = async (req, res) => {
-  const data = await userService.verifyLoginCode(req.body);
-  res.status(200).json({ success: true, message: 'تم تسجيل الدخول بنجاح', data });
-};
-
-// تسجيل الدخول العادي بالإيميل والباسورد
 const login = async (req, res) => {
   const data = await userService.login(req.body);
   res.status(200).json({ success: true, message: 'Login successful', data });
 };
 
 const forgotPassword = async (req, res) => {
-  const data = await userService.forgotPassword(req.body.email);
-  res.status(200).json({ success: true, message: 'تم إرسال كود استعادة كلمة المرور', data });
+  const data = await userService.forgotPassword(req.body.email, req.body.phone);
+  res.status(200).json({ success: true, message: 'تم التحقق من بيانات الحساب. يمكنك الآن تعيين كلمة مرور جديدة.', data });
 };
 
 const resetPassword = async (req, res) => {
-  const data = await userService.resetPassword(req.body.email, req.body.code, req.body.newPassword);
+  const data = await userService.resetPassword(req.body.email, req.body.resetToken, req.body.newPassword);
   res.status(200).json({ success: true, message: 'تم تغيير كلمة المرور بنجاح', data });
-};
-
-const requestSensitiveOtp = async (req, res) => {
-  const data = await userService.requestSensitiveOtp(req.user, req.body.purpose);
-  res.status(200).json({ success: true, message: 'تم إرسال كود التأكيد إلى بريدك الإلكتروني', data });
 };
 
 const getMyProfile = async (req, res) => {
@@ -72,7 +46,7 @@ const updateProfile = async (req, res) => {
 };
 
 const changePassword = async (req, res) => {
-  const data = await userService.changePassword(req.user, req.body.currentPassword, req.body.newPassword, req.body.otpCode);
+  const data = await userService.changePassword(req.user, req.body.currentPassword, req.body.newPassword);
   res.status(200).json({ success: true, message: 'Password changed successfully', data });
 };
 
@@ -103,14 +77,9 @@ const getPublicProfile = async (req, res) => {
 
 module.exports = {
   register,
-  verifyActivation,
-  resendActivation,
-  requestLoginCode,
-  verifyLoginCode,
   login,
   forgotPassword,
   resetPassword,
-  requestSensitiveOtp,
   getMyProfile,
   getMyNotifications,
   getMyNotificationCount,

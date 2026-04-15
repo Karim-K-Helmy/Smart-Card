@@ -53,7 +53,6 @@ router.get('/notifications/summary', auth, allowTo('admin', 'super_admin'), asyn
 router.get('/notifications/:type/count', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.getNotificationCount));
 router.patch('/notifications/:type/read', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.markNotificationAsRead));
 router.get('/me', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.getMe));
-router.post('/me/request-otp', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.requestProfileOtp));
 router.put('/me', auth, allowTo('admin', 'super_admin'), uploadSingle('avatar'), validate(adminProfileUpdateSchema), asyncHandler(controller.updateMe));
 router.get('/admins', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listAdmins));
 router.post('/admins', auth, allowTo('admin', 'super_admin'), validate(createAdminSchema), asyncHandler(controller.createAdmin));

@@ -56,7 +56,6 @@ const userUpdateSchema = Joi.object({
 const adminProfileUpdateSchema = Joi.object({
   body: Joi.object({
     name: Joi.string().min(2).max(100),
-    otpCode: Joi.string().length(6).allow('', null),
     currentPassword: Joi.string().allow('', null),
     newPassword: Joi.string().min(6).max(100).allow('', null),
   }).required(),

@@ -53,6 +53,8 @@ export default function UploadReceiptPage() {
     }
   };
 
+  const hasVisiblePrice = Number(refs.order?.totalAmount || 0) > 0;
+
   return (
     <div className="stack-lg">
       <PageHeader title="رفع إيصال الدفع" text="أرسل صورة واضحة مع بيانات التحويل لتسريع المراجعة." />
@@ -60,7 +62,7 @@ export default function UploadReceiptPage() {
         <form className="form-card" onSubmit={handleSubmit}>
           <div className="form-grid">
             <label><span>رقم الطلب</span><input value={refs.order?._id || ''} readOnly /></label>
-            <label><span>المبلغ</span><input value={refs.order ? formatMoney(refs.order.totalAmount) : ''} readOnly /></label>
+            {hasVisiblePrice ? <label><span>المبلغ</span><input value={refs.order ? formatMoney(refs.order.totalAmount) : ''} readOnly /></label> : null}
           </div>
           <label><span>وسيلة الدفع</span><select value={refs.methodId} onChange={(e) => setRefs({ ...refs, methodId: e.target.value })}>{refs.methods.map((method) => <option key={method._id} value={method._id}>{method.methodName} - {method.phoneNumber}</option>)}</select></label>
           <div className="form-grid">
@@ -68,7 +70,7 @@ export default function UploadReceiptPage() {
             <label><span>رقم المحول</span><input required value={form.senderPhone} onChange={(e) => setForm({ ...form, senderPhone: e.target.value })} /></label>
           </div>
           <div className="form-grid">
-            <label><span>مبلغ التحويل</span><input required type="number" min="0" value={form.transferredAmount} onChange={(e) => setForm({ ...form, transferredAmount: e.target.value })} /></label>
+            {hasVisiblePrice ? <label><span>مبلغ التحويل</span><input required type="number" min="0" value={form.transferredAmount} onChange={(e) => setForm({ ...form, transferredAmount: e.target.value })} /></label> : null}
             <label><span>تاريخ التحويل</span><input type="date" value={form.transferDate} onChange={(e) => setForm({ ...form, transferDate: e.target.value })} /></label>
           </div>
           <label><span>صورة الوصل</span><input type="file" required onChange={(e) => setForm({ ...form, receiptImage: e.target.files?.[0] || null })} /></label>

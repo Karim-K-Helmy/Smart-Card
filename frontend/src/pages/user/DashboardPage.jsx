@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/common/PageHeader';
 import StatCard from '../../components/ui/StatCard';
 import Card from '../../components/ui/Card';
@@ -26,9 +26,13 @@ export default function DashboardPage() {
           getMyCard(),
         ]);
 
+        const safeOrders = Array.isArray(ordersRes.status === 'fulfilled' ? ordersRes.value.data.data : [])
+          ? (ordersRes.status === 'fulfilled' ? ordersRes.value.data.data : []).filter((item) => item && typeof item === 'object')
+          : [];
+
         setData({
           profile: profileRes.status === 'fulfilled' ? profileRes.value.data.data : null,
-          orders: ordersRes.status === 'fulfilled' ? ordersRes.value.data.data : [],
+          orders: safeOrders,
           card: cardRes.status === 'fulfilled' ? cardRes.value.data.data : null,
         });
 
@@ -43,9 +47,10 @@ export default function DashboardPage() {
     load();
   }, []);
 
-  const latestOrder = data.orders?.[0];
+  const latestOrder = data.orders?.[0] || null;
   const linksCount = data.profile?.socialLinks?.length || 0;
   const productsCount = data.profile?.products?.length || 0;
+  const visibleOrders = useMemo(() => data.orders.filter((order) => order?._id), [data.orders]);
 
   return (
     <div className="stack-lg">
@@ -60,15 +65,15 @@ export default function DashboardPage() {
       <div className="stats-grid">
         <StatCard label="حالة الحساب" value={authState.user?.status || 'active'} hint="من بيانات الحساب" />
         <StatCard label="حالة البطاقة" value={data.card?.isActive ? 'مفعلة' : latestOrder?.orderStatus || 'لا توجد'} hint="آخر حالة متاحة" />
-        <StatCard label="عدد الطلبات" value={loading ? '...' : String(data.orders.length)} hint="كل الطلبات" />
+        <StatCard label="عدد الطلبات" value={loading ? '...' : String(visibleOrders.length)} hint="كل الطلبات" />
         <StatCard label="الروابط / الأعمال" value={`${linksCount} / ${productsCount}`} hint="روابط السوشيال والمنتجات" />
       </div>
 
       <div className="grid grid-2">
         <Card title="آخر الطلبات">
           <div className="stack-md">
-            {data.orders.length ? data.orders.slice(0, 3).map((order) => (
-              <div key={order._id} className="row-line">
+            {visibleOrders.length ? visibleOrders.slice(0, 3).map((order, index) => (
+              <div key={order._id || `order-${index}`} className="row-line">
                 <div>
                   <strong>{order.cardPlanId?.name || 'خطة'}</strong>
                   <p>{formatDate(order.createdAt)}</p>
@@ -82,7 +87,7 @@ export default function DashboardPage() {
           <div className="stack-md">
             <div className="notice-card notice-info">
               <strong>Slug</strong>
-              <p>{data.profile?.user?.profileSlug || '-'}</p>
+              <p>{data.profile?.user?.profileSlug || authState.user?.profileSlug || '-'}</p>
             </div>
             <div className="notice-card notice-success">
               <strong>البطاقة الحالية</strong>
@@ -90,7 +95,7 @@ export default function DashboardPage() {
             </div>
             <div className="notice-card">
               <strong>آخر تحديث للبروفايل</strong>
-              <p>{formatDate(data.profile?.user?.updatedAt)}</p>
+              <p>{formatDate(data.profile?.user?.updatedAt || authState.user?.updatedAt)}</p>
             </div>
           </div>
         </Card>

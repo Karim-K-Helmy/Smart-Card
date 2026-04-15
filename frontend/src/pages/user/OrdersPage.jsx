@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Badge from '../../components/ui/Badge';
@@ -24,8 +24,10 @@ export default function OrdersPage() {
           listMyReceipts(),
           markMyNotificationAsRead('orders'),
         ]);
-        setOrders(ordersRes.data.data || []);
-        setReceipts(receiptsRes.data.data || []);
+        const safeOrders = Array.isArray(ordersRes.data.data) ? ordersRes.data.data.filter((item) => item && typeof item === 'object') : [];
+        const safeReceipts = Array.isArray(receiptsRes.data.data) ? receiptsRes.data.data.filter((item) => item && typeof item === 'object') : [];
+        setOrders(safeOrders);
+        setReceipts(safeReceipts);
         window.dispatchEvent(new CustomEvent(BADGE_SYNC_EVENT, { detail: { area: 'user', key: 'orders' } }));
       } catch (error) {
         setStatus({ loading: false, error: extractApiError(error) });
@@ -36,8 +38,10 @@ export default function OrdersPage() {
     load();
   }, []);
 
-  const latest = orders[0];
-  const latestReceipt = latest ? receipts.find((item) => item.cardOrderId?._id === latest._id) : null;
+  const visibleOrders = useMemo(() => orders.filter((order) => order?._id), [orders]);
+  const latest = visibleOrders[0] || null;
+  const latestReceipt = latest ? receipts.find((item) => item?.cardOrderId?._id === latest._id) : null;
+  const latestHasVisiblePrice = Number(latest?.totalAmount || 0) > 0;
 
   return (
     <div className="stack-lg">
@@ -49,8 +53,8 @@ export default function OrdersPage() {
             <>
               <div className="stack-md">
                 <div className="row-line"><strong>رقم الطلب</strong><span>{latest._id}</span></div>
-                <div className="row-line"><strong>الباقة</strong><span>{latest.cardPlanId?.name}</span></div>
-                <div className="row-line"><strong>المبلغ</strong><span>{formatMoney(latest.totalAmount)}</span></div>
+                <div className="row-line"><strong>الباقة</strong><span>{latest.cardPlanId?.name || '-'}</span></div>
+                {latestHasVisiblePrice ? <div className="row-line"><strong>المبلغ</strong><span>{formatMoney(latest.totalAmount)}</span></div> : null}
                 <div className="row-line"><strong>الحالة</strong><Badge tone={latest.orderStatus}>{latest.orderStatus}</Badge></div>
                 <div className="row-line"><strong>آخر إيصال</strong><span>{latestReceipt ? translateDisplayValue(latestReceipt.reviewStatus) : 'لا يوجد'}</span></div>
               </div>
@@ -60,15 +64,19 @@ export default function OrdersPage() {
         </Card>
         <Card title="كل الطلبات" icon="fa-id-card">
           <div className="stack-md">
-            {orders.length ? orders.map((order) => (
-              <div key={order._id} className="order-summary">
-                <div>
-                  <strong>{order.cardPlanId?.name}</strong>
-                  <p>{formatDate(order.createdAt)} — {formatMoney(order.totalAmount)}</p>
+            {visibleOrders.length ? visibleOrders.map((order, index) => {
+              const orderHasVisiblePrice = Number(order.totalAmount || 0) > 0;
+
+              return (
+                <div key={order._id || `order-${index}`} className="order-summary">
+                  <div>
+                    <strong>{order.cardPlanId?.name || '-'}</strong>
+                    <p>{formatDate(order.createdAt)}{orderHasVisiblePrice ? ` — ${formatMoney(order.totalAmount)}` : ''}</p>
+                  </div>
+                  <Badge tone={order.orderStatus}>{order.orderStatus}</Badge>
                 </div>
-                <Badge tone={order.orderStatus}>{order.orderStatus}</Badge>
-              </div>
-            )) : <p>لا توجد طلبات.</p>}
+              );
+            }) : <p>لا توجد طلبات.</p>}
           </div>
         </Card>
       </div>

@@ -8,7 +8,6 @@ const AdminAction = require('../../../DB/Models/adminAction.model');
 const Message = require('../../../DB/Models/message.model');
 const { AppError } = require('../../utils/errorhandling');
 const { signAdminToken } = require('../../services/token.service');
-const { issueCode, consumeCode } = require('../../services/verification.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
 const logAdminAction = require('../../services/admin-log.service');
 
@@ -168,50 +167,12 @@ const login = async ({ email, password }) => {
   };
 };
 
-const requestLoginCode = async () => {
-  throw new AppError('تم إيقاف كود دخول الأدمن. استخدم البريد الإلكتروني وكلمة المرور لتسجيل الدخول.', 410);
-};
-
-const verifyLoginCode = async () => {
-  throw new AppError('تم إيقاف كود دخول الأدمن. استخدم البريد الإلكتروني وكلمة المرور لتسجيل الدخول.', 410);
-};
-
 const requestPasswordReset = async () => {
-  const admin = await findConfiguredAdmin({ selectPassword: true });
-  if (!admin) {
-    throw new AppError('لم يتم العثور على حساب الأدمن الأساسي. راجع ADMIN_EMAIL داخل ملف البيئة.', 404);
-  }
-
-  const deliveryEmail = getPrimaryAdminEmail(admin.email);
-  return issueCode({
-    email: deliveryEmail,
-    purpose: 'admin_reset_password',
-    accountModel: 'Admin',
-    title: 'إعادة تعيين كلمة مرور الأدمن',
-    greeting: `مرحبًا ${admin.name}،`,
-    intro: 'تم طلب إعادة تعيين كلمة مرور حساب الأدمن. استخدم رمز التحقق التالي لإكمال العملية بأمان.',
-    helpText: 'سيتم إرسال هذا الرمز إلى البريد الأساسي للإدمن المُعد داخل ملف البيئة (.env). إذا لم تطلب هذا الإجراء، تجاهل الرسالة.',
-  });
+  throw new AppError('تم إيقاف استعادة كلمة مرور الأدمن من هذه الواجهة بعد إزالة نظام رموز التحقق من المشروع.', 410);
 };
 
-const resetPassword = async (code, newPassword) => {
-  const admin = await findConfiguredAdmin({ selectPassword: true });
-  if (!admin) {
-    throw new AppError('لم يتم العثور على حساب الأدمن الأساسي. راجع ADMIN_EMAIL داخل ملف البيئة.', 404);
-  }
-
-  const deliveryEmail = getPrimaryAdminEmail(admin.email);
-  await consumeCode({
-    email: deliveryEmail,
-    code,
-    purpose: 'admin_reset_password',
-    accountModel: 'Admin',
-  });
-
-  admin.passwordHash = newPassword;
-  await admin.save();
-
-  return { changed: true };
+const resetPassword = async () => {
+  throw new AppError('تم إيقاف إعادة تعيين كلمة مرور الأدمن من هذه الواجهة بعد إزالة نظام رموز التحقق من المشروع.', 410);
 };
 
 const getDashboard = async () => {
@@ -244,24 +205,6 @@ const getMe = async (adminId) => {
   return sanitizeAdmin(admin);
 };
 
-const requestProfileOtp = async (currentAdmin) => {
-  const admin = await Admin.findById(currentAdmin._id);
-  if (!admin) {
-    throw new AppError('Admin not found', 404);
-  }
-
-  const deliveryEmail = getPrimaryAdminEmail(admin.email);
-  return issueCode({
-    email: deliveryEmail,
-    purpose: 'admin_change_password',
-    accountModel: 'Admin',
-    title: 'تأكيد تغيير كلمة مرور الأدمن',
-    greeting: `مرحبًا ${admin.name}،`,
-    intro: 'استخدم رمز التحقق التالي قبل حفظ كلمة المرور الجديدة الخاصة بحساب الأدمن.',
-    helpText: 'سيتم إرسال هذا الرمز إلى البريد الأساسي للإدمن المُعد داخل ملف البيئة (.env)، ولن تُرسل رسائل للأدمن إلا في حالات كلمة المرور.',
-  });
-};
-
 const updateMe = async (currentAdmin, payload, file) => {
   const admin = await Admin.findById(currentAdmin._id).select('+passwordHash');
   if (!admin) {
@@ -274,9 +217,6 @@ const updateMe = async (currentAdmin, payload, file) => {
   }
 
   if (payload.newPassword) {
-    if (!payload.otpCode) {
-      throw new AppError('يجب إدخال رمز التحقق المرسل إلى بريد الأدمن الأساسي قبل تغيير كلمة المرور', 400);
-    }
     if (!payload.currentPassword) {
       throw new AppError('أدخل كلمة المرور الحالية قبل تعيين كلمة مرور جديدة', 400);
     }
@@ -285,13 +225,6 @@ const updateMe = async (currentAdmin, payload, file) => {
     if (!matched) {
       throw new AppError('كلمة المرور الحالية غير صحيحة', 400);
     }
-
-    await consumeCode({
-      email: getPrimaryAdminEmail(admin.email),
-      code: payload.otpCode,
-      purpose: 'admin_change_password',
-      accountModel: 'Admin',
-    });
 
     admin.passwordHash = payload.newPassword;
   }
@@ -668,14 +601,11 @@ const listActions = async ({ page = 1, limit = 20, actionType, adminId, fromDate
 
 module.exports = {
   login,
-  requestLoginCode,
-  verifyLoginCode,
   requestPasswordReset,
   resetPassword,
   getDashboard,
   getNotificationSummary,
   getMe,
-  requestProfileOtp,
   updateMe,
   listAdmins,
   createAdmin,

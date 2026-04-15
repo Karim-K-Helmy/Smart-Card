@@ -1,7 +1,6 @@
 import http from '../http';
 
 export const registerUser = (payload) => http.post('/users/register', payload);
-export const verifyUserRegistration = (payload) => http.post('/users/register/verify', payload);
 
 export const forgotPassword = (payload) => http.post('/users/forgot-password', payload);
 export const resetPassword = (payload) => http.post('/users/reset-password', payload);

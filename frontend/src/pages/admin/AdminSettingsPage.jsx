@@ -9,7 +9,6 @@ import {
   deleteAdminUser,
   getAdminMe,
   listAdmins,
-  requestAdminProfileOtp,
   updateAdminMe,
   updateAdminUser,
 } from '../../services/api/admin';
@@ -55,7 +54,7 @@ const mapMethodPayload = (method) => ({
 export default function AdminSettingsPage() {
   const { authState, updateStoredUser } = useAuth();
   const [status, setStatus] = useState({ loading: true, error: '', success: '' });
-  const [profileStatus, setProfileStatus] = useState({ otp: '', saving: false });
+  const [profileStatus, setProfileStatus] = useState({ saving: false });
   const [methodsStatus, setMethodsStatus] = useState({ saving: false });
   const [plansStatus, setPlansStatus] = useState({ savingId: '' });
   const [adminsStatus, setAdminsStatus] = useState({ saving: false });
@@ -63,7 +62,6 @@ export default function AdminSettingsPage() {
   const [profile, setProfile] = useState({
     name: '',
     email: '',
-    otpCode: '',
     currentPassword: '',
     newPassword: '',
     avatar: null,
@@ -103,8 +101,7 @@ export default function AdminSettingsPage() {
         email: adminData.primaryEmail || adminData.email || '',
         avatarUrl: adminData.avatarUrl || '',
         avatar: null,
-        otpCode: '',
-        currentPassword: '',
+            currentPassword: '',
         newPassword: '',
       }));
 
@@ -140,20 +137,6 @@ export default function AdminSettingsPage() {
   const pushSuccess = (message) => setStatus((prev) => ({ ...prev, success: message, error: '' }));
   const pushError = (error) => setStatus((prev) => ({ ...prev, error: extractApiError(error), success: '' }));
 
-  const sendProfileOtp = async () => {
-    setProfileStatus((prev) => ({ ...prev, otp: '' }));
-    try {
-      const { data } = await requestAdminProfileOtp();
-      const devCode = data.data?.devCode;
-      const message = devCode
-        ? `تم إرسال كود تغيير كلمة المرور. كود التطوير الحالي: ${devCode}`
-        : 'تم إرسال كود تغيير كلمة المرور إلى بريد الأدمن الأساسي.';
-      setProfileStatus((prev) => ({ ...prev, otp: message }));
-      pushSuccess(message);
-    } catch (error) {
-      pushError(error);
-    }
-  };
 
   const saveProfile = async (event) => {
     event.preventDefault();
@@ -161,7 +144,6 @@ export default function AdminSettingsPage() {
     try {
       const payload = toFormData({
         name: profile.name,
-        otpCode: profile.otpCode,
         currentPassword: profile.currentPassword,
         newPassword: profile.newPassword,
         avatar: profile.avatar,
@@ -172,8 +154,7 @@ export default function AdminSettingsPage() {
         ...prev,
         avatar: null,
         avatarUrl: adminData.avatarUrl || prev.avatarUrl,
-        otpCode: '',
-        currentPassword: '',
+            currentPassword: '',
         newPassword: '',
       }));
       updateStoredUser(adminData);
@@ -337,7 +318,6 @@ export default function AdminSettingsPage() {
               <div>
                 <strong>{profile.name || 'Admin'}</strong>
                 <p className="muted">{profile.email || '-'}</p>
-                <Badge tone="info">OTP مطلوب فقط عند تغيير كلمة المرور</Badge>
               </div>
             </div>
 
@@ -347,16 +327,11 @@ export default function AdminSettingsPage() {
                 <label><span>البريد الأساسي (ثابت من .env)</span><input type="email" value={profile.email} readOnly disabled /></label>
               </div>
               <label><span>صورة الأدمن</span><input type="file" accept="image/*" onChange={(e) => setProfile({ ...profile, avatar: e.target.files?.[0] || null })} /></label>
-              <div className="form-grid">
-                <label><span>كود التأكيد OTP</span><input value={profile.otpCode} onChange={(e) => setProfile({ ...profile, otpCode: e.target.value })} placeholder="أدخله فقط عند تغيير كلمة المرور" /></label>
-                <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
-              </div>
+              <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
               <label><span>كلمة مرور جديدة</span><input type="password" value={profile.newPassword} onChange={(e) => setProfile({ ...profile, newPassword: e.target.value })} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
               <div className="header-actions">
-                <Button type="button" variant="secondary" onClick={sendProfileOtp}>إرسال OTP لكلمة المرور</Button>
                 <Button type="submit" disabled={profileStatus.saving}>{profileStatus.saving ? 'جارٍ الحفظ...' : 'حفظ الملف الشخصي'}</Button>
               </div>
-              {profileStatus.otp ? <p className="success-text">{profileStatus.otp}</p> : null}
             </form>
           </div>
         </Card>

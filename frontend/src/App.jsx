@@ -22,7 +22,6 @@ import RequestCardPage from './pages/user/RequestCardPage';
 import OrdersPage from './pages/user/OrdersPage';
 import MyCardPage from './pages/user/MyCardPage';
 import NotificationsPage from './pages/user/NotificationsPage';
-import SettingsPage from './pages/user/SettingsPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminForgotPasswordPage from './pages/admin/AdminForgotPasswordPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -70,7 +69,6 @@ function App() {
         <Route path="orders" element={<OrdersPage />} />
         <Route path="my-card" element={<MyCardPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="/admin/login" element={<AdminLoginPage />} />

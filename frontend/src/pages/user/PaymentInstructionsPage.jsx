@@ -34,6 +34,8 @@ export default function PaymentInstructionsPage() {
   }, [state?.order, state?.plan]);
 
   const method = current.methods[0];
+  const amount = current.order?.totalAmount || current.plan?.price || 0;
+  const hasVisiblePrice = Number(amount) > 0;
 
   return (
     <div className="stack-lg">
@@ -43,13 +45,13 @@ export default function PaymentInstructionsPage() {
         <div className="instruction-list">
           <p><strong>الخطة:</strong> {current.plan?.name || '-'}</p>
           <p><strong>رقم الطلب:</strong> {current.order?._id || '-'}</p>
-          <p><strong>المبلغ المطلوب:</strong> {formatMoney(current.order?.totalAmount || current.plan?.price)}</p>
+          {hasVisiblePrice ? <p><strong>المبلغ المطلوب:</strong> {formatMoney(amount)}</p> : null}
           <p><strong>وسيلة الدفع:</strong> {method?.methodName || 'غير متاحة الآن'}</p>
           <p><strong>رقم التحويل:</strong> {method?.phoneNumber || '-'}</p>
           <p><strong>اسم المستلم:</strong> {method?.accountName || '-'}</p>
           <p><strong>التعليمات:</strong> {method?.instructions || 'بعد التحويل ارفع الوصل من الصفحة التالية.'}</p>
           <ol>
-            <li>حوّل المبلغ المطلوب على الرقم الموضح.</li>
+            {hasVisiblePrice ? <li>حوّل المبلغ المطلوب على الرقم الموضح.</li> : null}
             <li>التقط صورة واضحة للوصول أو شاشة التحويل.</li>
             <li>انتقل إلى صفحة رفع الوصل وأرسل التفاصيل كاملة.</li>
           </ol>
