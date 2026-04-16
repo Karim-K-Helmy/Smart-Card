@@ -14,6 +14,23 @@ const registerSchema = Joi.object({
   query: Joi.object({}),
 });
 
+const verifyRegistrationSchema = Joi.object({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+    code: Joi.string().length(6).required(),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
+const resendActivationSchema = Joi.object({
+  body: Joi.object({
+    email: Joi.string().email().required(),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
 const loginSchema = Joi.object({
   body: Joi.object({
     emailOrPhone: Joi.string().required(),
@@ -25,8 +42,16 @@ const loginSchema = Joi.object({
 
 const forgotPasswordSchema = Joi.object({
   body: Joi.object({
-    email: Joi.string().email().required(),
-    phone: Joi.string().min(6).max(20).required(),
+    identifier: Joi.string().required(),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
+const verifyForgotPasswordSchema = Joi.object({
+  body: Joi.object({
+    identifier: Joi.string().required(),
+    code: Joi.string().length(6).required(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -34,8 +59,8 @@ const forgotPasswordSchema = Joi.object({
 
 const resetPasswordSchema = Joi.object({
   body: Joi.object({
-    email: Joi.string().email().required(),
-    resetToken: Joi.string().required(),
+    identifier: Joi.string().required(),
+    code: Joi.string().length(6).required(),
     newPassword: Joi.string().min(6).max(100).required(),
   }).required(),
   params: Joi.object({}),
@@ -186,8 +211,11 @@ const createDataRequestSchema = Joi.object({
 
 module.exports = {
   registerSchema,
+  verifyRegistrationSchema,
+  resendActivationSchema,
   loginSchema,
   forgotPasswordSchema,
+  verifyForgotPasswordSchema,
   resetPasswordSchema,
   updateProfileSchema,
   changePasswordSchema,

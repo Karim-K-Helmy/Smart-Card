@@ -7,8 +7,11 @@ const { uploadFields } = require('../../services/MulterLocally');
 const controller = require('./user.controller');
 const {
   registerSchema,
+  verifyRegistrationSchema,
+  resendActivationSchema,
   loginSchema,
   forgotPasswordSchema,
+  verifyForgotPasswordSchema,
   resetPasswordSchema,
   updateProfileSchema,
   changePasswordSchema,
@@ -37,8 +40,11 @@ const notificationTypeSchema = Joi.object({
 });
 
 router.post('/register', validate(registerSchema), asyncHandler(controller.register));
+router.post('/register/verify-otp', validate(verifyRegistrationSchema), asyncHandler(controller.verifyRegistrationOtp));
+router.post('/register/resend-otp', validate(resendActivationSchema), asyncHandler(controller.resendActivationCode));
 router.post('/login', validate(loginSchema), asyncHandler(controller.login));
 router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(controller.forgotPassword));
+router.post('/forgot-password/verify-otp', validate(verifyForgotPasswordSchema), asyncHandler(controller.verifyForgotPasswordOtp));
 router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(controller.resetPassword));
 router.post('/check-phone', validate(checkPhoneSchema), asyncHandler(controller.checkPhoneExists));
 router.post('/data-requests', validate(createDataRequestSchema), asyncHandler(controller.createDataRequest));

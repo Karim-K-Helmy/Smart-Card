@@ -1,59 +1,100 @@
 import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { checkUserPhone, createUserDataRequest } from '../../services/api/auth';
+import { forgotPassword, resetPassword, verifyForgotPasswordOtp } from '../../services/api/auth';
 import { extractApiError } from '../../utils/api';
 
 export default function ForgotPasswordPage() {
-  const [form, setForm] = useState({ phone: '', notes: '' });
-  const [step, setStep] = useState('verify');
-  const [status, setStatus] = useState({ loading: false, error: '', success: '' });
+  const navigate = useNavigate();
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({ identifier: '', code: '', newPassword: '', confirmPassword: '' });
+  const [status, setStatus] = useState({ loading: false, error: '', success: '', sentTo: '' });
 
-  const handleVerify = async (event) => {
+  const requestOtp = async (event) => {
     event.preventDefault();
-    setStatus({ loading: true, error: '', success: '' });
+    setStatus({ loading: true, error: '', success: '', sentTo: '' });
     try {
-      await checkUserPhone({ phone: form.phone });
-      setStep('confirm');
-      setStatus({ loading: false, error: '', success: 'تم العثور على الرقم. يمكنك الآن تأكيد إرسال الطلب.' });
+      const { data } = await forgotPassword({ identifier: form.identifier });
+      setStep(2);
+      setStatus({
+        loading: false,
+        error: '',
+        success: 'تم إرسال رمز OTP بنجاح.',
+        sentTo: data.data?.sentTo || '',
+      });
     } catch (error) {
-      setStep('verify');
-      setStatus({ loading: false, error: extractApiError(error), success: '' });
+      setStatus({ loading: false, error: extractApiError(error), success: '', sentTo: '' });
     }
   };
 
-  const handleConfirm = async () => {
-    setStatus({ loading: true, error: '', success: '' });
+  const verifyOtp = async (event) => {
+    event.preventDefault();
+    setStatus((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      const response = await createUserDataRequest(form);
-      setStatus({ loading: false, error: '', success: response.data?.message || 'تم تقديم طلبك، جاري مراجعته وسوف تتلقى رسالة على الواتساب الخاص بك' });
-      setForm({ phone: '', notes: '' });
-      setStep('verify');
+      await verifyForgotPasswordOtp({ identifier: form.identifier, code: form.code });
+      setStep(3);
+      setStatus((prev) => ({ ...prev, loading: false, success: 'تم التحقق من الرمز بنجاح.' }));
     } catch (error) {
-      setStatus({ loading: false, error: extractApiError(error), success: '' });
+      setStatus((prev) => ({ ...prev, loading: false, error: extractApiError(error) }));
+    }
+  };
+
+  const submitReset = async (event) => {
+    event.preventDefault();
+    if (form.newPassword.length < 6) {
+      setStatus((prev) => ({ ...prev, error: 'كلمة المرور يجب ألا تقل عن 6 أحرف.' }));
+      return;
+    }
+    if (form.newPassword !== form.confirmPassword) {
+      setStatus((prev) => ({ ...prev, error: 'تأكيد كلمة المرور غير مطابق.' }));
+      return;
+    }
+
+    setStatus((prev) => ({ ...prev, loading: true, error: '' }));
+    try {
+      await resetPassword({ identifier: form.identifier, code: form.code, newPassword: form.newPassword });
+      setStatus((prev) => ({ ...prev, loading: false, success: 'تم تغيير كلمة المرور بنجاح.' }));
+      navigate('/auth/login', { replace: true });
+    } catch (error) {
+      setStatus((prev) => ({ ...prev, loading: false, error: extractApiError(error) }));
     }
   };
 
   return (
     <section className="auth-section">
-      <Card className="auth-card" title="طلب نسيان كلمة المرور أو تعديل البيانات">
-        <form className="form-card" onSubmit={handleVerify}>
-          <label>
-            <span>رقم الهاتف</span>
-            <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="أدخل رقم الهاتف المسجل" />
-          </label>
-          <label>
-            <span>ملاحظات</span>
-            <textarea rows="4" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="مثال: نسيت الباسورد، أريد تعديل رقم الواتساب" />
-          </label>
-          {status.error ? <p className="error-text">{status.error}</p> : null}
-          {status.success ? <p className="success-text">{status.success}</p> : null}
-          {step === 'verify' ? (
-            <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ التحقق...' : 'تحقق من الرقم'}</Button>
-          ) : (
-            <Button type="button" onClick={handleConfirm} disabled={status.loading}>{status.loading ? 'جارٍ إرسال الطلب...' : 'اضغط لتأكيد إرسال الطلب'}</Button>
-          )}
-        </form>
+      <Card className="auth-card" title="نسيت كلمة المرور">
+        {step === 1 ? (
+          <form className="form-card" onSubmit={requestOtp}>
+            <label>
+              <span>البريد الإلكتروني أو رقم الهاتف</span>
+              <input required value={form.identifier} onChange={(e) => setForm({ ...form, identifier: e.target.value })} placeholder="أدخل البريد أو رقم الهاتف" />
+            </label>
+            {status.error ? <p className="error-text">{status.error}</p> : null}
+            {status.success ? <p className="success-text">{status.success}</p> : null}
+            <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ الإرسال...' : 'إرسال رمز OTP'}</Button>
+          </form>
+        ) : step === 2 ? (
+          <form className="form-card" onSubmit={verifyOtp}>
+            <label><span>البريد/الهاتف</span><input value={form.identifier} readOnly /></label>
+            <label><span>رمز OTP</span><input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
+            <p className="muted">تم إرسال الرمز إلى: <strong>{status.sentTo || 'وسيلة التواصل المسجلة'}</strong></p>
+            {status.error ? <p className="error-text">{status.error}</p> : null}
+            {status.success ? <p className="success-text">{status.success}</p> : null}
+            <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ التحقق...' : 'تحقق من OTP'}</Button>
+          </form>
+        ) : (
+          <form className="form-card" onSubmit={submitReset}>
+            <label><span>كلمة المرور الجديدة</span><input type="password" required value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} /></label>
+            <label><span>تأكيد كلمة المرور الجديدة</span><input type="password" required value={form.confirmPassword} onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })} /></label>
+            {status.error ? <p className="error-text">{status.error}</p> : null}
+            {status.success ? <p className="success-text">{status.success}</p> : null}
+            <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ الحفظ...' : 'إعادة تعيين كلمة المرور'}</Button>
+          </form>
+        )}
+        <div className="auth-links">
+          <Link to="/auth/login">العودة لتسجيل الدخول</Link>
+        </div>
       </Card>
     </section>
   );

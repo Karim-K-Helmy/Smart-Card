@@ -6,18 +6,28 @@ const login = async (req, res) => {
 };
 
 const forgotPassword = async (req, res) => {
-  const data = await adminService.requestPasswordReset(req.body.email);
+  const data = await adminService.requestPasswordReset(req.body.identifier);
   res.status(200).json({ success: true, message: 'تم إرسال رمز التحقق إلى بريد المدير العام', data });
 };
 
+const verifyForgotPasswordOtp = async (req, res) => {
+  const data = await adminService.verifyPasswordResetOtp(req.body.identifier, req.body.code);
+  res.status(200).json({ success: true, message: 'تم التحقق من رمز OTP بنجاح', data });
+};
+
 const resetPassword = async (req, res) => {
-  const data = await adminService.resetPassword(req.body.email, req.body.code, req.body.newPassword);
+  const data = await adminService.resetPassword(req.body.identifier, req.body.code, req.body.newPassword);
   res.status(200).json({ success: true, message: 'تم إعادة تعيين كلمة المرور بنجاح', data });
 };
 
 const dashboard = async (req, res) => {
   const data = await adminService.getDashboard();
   res.status(200).json({ success: true, message: 'Dashboard fetched successfully', data });
+};
+
+const resourceMonitoring = async (req, res) => {
+  const data = await adminService.getResourceMonitoring();
+  res.status(200).json({ success: true, message: 'Resource monitoring fetched successfully', data });
 };
 
 const notificationSummary = async (req, res) => {
@@ -46,7 +56,7 @@ const updateMe = async (req, res) => {
 };
 
 const listAdmins = async (req, res) => {
-  const data = await adminService.listAdmins();
+  const data = await adminService.listAdmins(req.query);
   res.status(200).json({ success: true, message: 'Admins fetched successfully', data });
 };
 
@@ -118,8 +128,10 @@ const updateDataRequestStatus = async (req, res) => {
 module.exports = {
   login,
   forgotPassword,
+  verifyForgotPasswordOtp,
   resetPassword,
   dashboard,
+  resourceMonitoring,
   notificationSummary,
   getNotificationCount,
   markNotificationAsRead,

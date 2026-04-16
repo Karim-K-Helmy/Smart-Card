@@ -355,7 +355,7 @@ export default function AdminSettingsPage() {
       <div className="stack-lg">
         <PageHeader
           title="إعدادات الأدمن"
-          text="إدارة ملف الأدمن، تسعير باقتي Star وPro، وسائل الدفع، وحسابات الأدمن من شاشة واحدة حقيقية."
+          text="إدارة ملف الأدمن، تسعير باقتي Star وPro، ووسائل الدفع من شاشة واحدة."
           actions={<Button variant="secondary" onClick={load} disabled={status.loading}>تحديث البيانات</Button>}
         />
 
@@ -471,70 +471,8 @@ export default function AdminSettingsPage() {
             </div>
           </Card>
 
-          <Card title="إدارة الموظفين وحسابات الأدمن">
-            <div className="stack-md">
-              {!isSuperAdmin ? <div className="notice-card notice-info"><strong>تنبيه</strong><p>إدارة الموظفين وتعديل كلمات مرورهم متاحة للمدير العام فقط.</p></div> : null}
-              <form className="form-card" onSubmit={createAdminHandler}>
-                <div className="form-grid">
-                  <label><span>الاسم</span><input required value={newAdmin.name} onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })} /></label>
-                  <label><span>البريد</span><input required type="email" value={newAdmin.email} onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })} /></label>
-                </div>
-                <div className="form-grid">
-                  <label><span>كلمة المرور</span><input required type="password" value={newAdmin.password} onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })} /></label>
-                  <label><span>الدور</span><input value={newAdmin.role} onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })} /></label>
-                </div>
-                <Button type="submit" disabled={adminsStatus.saving || !isSuperAdmin}>{adminsStatus.saving ? 'جارٍ الإنشاء...' : 'إضافة أدمن جديد'}</Button>
-              </form>
-
-              <div className="table-like">
-                {admins.map((admin) => (
-                  <div key={admin._id} className="row-line admin-row-card">
-                    <div>
-                      <strong>{admin.name}</strong>
-                      <p className="muted">{admin.email}</p>{admin.isPrimaryAdmin ? <Badge tone="info">Primary</Badge> : null}
-                    </div>
-                    <div className="row-actions align-end">
-                      <Badge tone="info">{admin.role}</Badge>
-                      <Button variant="ghost" onClick={() => openEditAdminModal(admin)} disabled={adminsStatus.saving || !isSuperAdmin}>تعديل</Button>
-                      {admin._id !== authState.user?._id ? (
-                        <Button variant="danger" onClick={() => askRemoveAdmin(admin)} disabled={adminsStatus.saving || !isSuperAdmin}>حذف</Button>
-                      ) : (
-                        <Button variant="secondary" disabled>الحساب الحالي</Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
         </div>
       </div>
-
-      <Modal
-        open={adminEditState.open}
-        onClose={closeEditAdminModal}
-        size="lg"
-        title={`تعديل حساب ${adminEditState.admin?.name || ''}`}
-        description="نافذة احترافية لتعديل بيانات الأدمن بدلًا من استخدام prompt."
-        footer={(
-          <>
-            <Button variant="ghost" onClick={closeEditAdminModal}>إلغاء</Button>
-            <Button onClick={submitEditAdmin} disabled={adminEditState.saving}>{adminEditState.saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</Button>
-          </>
-        )}
-      >
-        <form className="stack-md" onSubmit={submitEditAdmin}>
-          <div className="form-grid">
-            <label><span>اسم الأدمن</span><input value={adminEditState.form.name} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} /></label>
-            <label><span>البريد الإلكتروني</span><input type="email" value={adminEditState.admin?.isPrimaryAdmin ? adminEditState.admin.email || '' : adminEditState.form.email} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))} disabled={adminEditState.admin?.isPrimaryAdmin} /></label>
-          </div>
-          <div className="form-grid">
-            <label><span>الدور</span><input value={adminEditState.form.role} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, role: e.target.value } }))} /></label>
-            <label><span>كلمة مرور جديدة</span><input type="password" value={adminEditState.form.password} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, password: e.target.value } }))} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
-          </div>
-          {adminEditState.error ? <p className="error-text">{adminEditState.error}</p> : null}
-        </form>
-      </Modal>
 
       <ConfirmDialog
         open={confirmState.open}

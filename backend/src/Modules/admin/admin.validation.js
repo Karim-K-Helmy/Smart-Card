@@ -13,7 +13,16 @@ const loginSchema = Joi.object({
 
 const forgotPasswordSchema = Joi.object({
   body: Joi.object({
-    email: Joi.string().email().required(),
+    identifier: Joi.string().required(),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
+const verifyForgotPasswordSchema = Joi.object({
+  body: Joi.object({
+    identifier: Joi.string().required(),
+    code: Joi.string().length(6).required(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -21,7 +30,7 @@ const forgotPasswordSchema = Joi.object({
 
 const resetPasswordSchema = Joi.object({
   body: Joi.object({
-    email: Joi.string().email().required(),
+    identifier: Joi.string().required(),
     code: Joi.string().length(6).required(),
     newPassword: Joi.string().min(6).max(100).required(),
   }).required(),
@@ -103,6 +112,7 @@ const dataRequestStatusSchema = Joi.object({
 module.exports = {
   loginSchema,
   forgotPasswordSchema,
+  verifyForgotPasswordSchema,
   resetPasswordSchema,
   userStatusSchema,
   userUpdateSchema,

@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const { recordSentEmail } = require('./resource-monitor.service');
 
 const hasRealSmtpConfig = () => {
   const host = process.env.SMTP_HOST;
@@ -19,6 +20,7 @@ const hasRealSmtpConfig = () => {
 const sendEmail = async ({ to, subject, text, html }) => {
   if (!hasRealSmtpConfig()) {
     console.log('[DEV EMAIL]', JSON.stringify({ to, subject, text }, null, 2));
+    await recordSentEmail({ mode: 'preview' }).catch(() => null);
     return {
       previewMode: true,
       to,
@@ -36,13 +38,16 @@ const sendEmail = async ({ to, subject, text, html }) => {
     },
   });
 
-  return transporter.sendMail({
+  const result = await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to,
     subject,
     text,
     html,
   });
+
+  await recordSentEmail({ mode: 'smtp' }).catch(() => null);
+  return result;
 };
 
 sendEmail.hasRealSmtpConfig = hasRealSmtpConfig;

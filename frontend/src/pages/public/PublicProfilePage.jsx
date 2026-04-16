@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import EmptyState from '../../components/common/EmptyState';
 import { getPublicProfile } from '../../services/api/users';
 import { extractApiError } from '../../utils/api';
-import omarProfileIcon from '../../../dist/assets/profile/icon.png';
+const omarProfileIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='24' fill='%230a3d91'/%3E%3Ctext x='50%25' y='55%25' font-size='32' text-anchor='middle' fill='white' font-family='Arial'%3EOE%3C/text%3E%3C/svg%3E";
 
 function formatPrice(value) {
   if (value === undefined || value === null || value === '') return 'السعر عند الطلب';

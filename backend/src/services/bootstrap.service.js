@@ -5,6 +5,7 @@ const PersonalProfile = require('../../DB/Models/personalProfile.model');
 const BusinessProfile = require('../../DB/Models/businessProfile.model');
 const SocialLink = require('../../DB/Models/socialLink.model');
 const Product = require('../../DB/Models/product.model');
+const VerificationCode = require('../../DB/Models/verificationCode.model');
 
 const defaultPlans = [
   {
@@ -58,11 +59,11 @@ const bootstrapPaymentMethods = async () => {
 };
 
 const cleanupUnverifiedAccounts = async () => {
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const staleUsers = await User.find({
     emailVerified: false,
     status: 'pending',
-    createdAt: { $lt: sevenDaysAgo },
+    createdAt: { $lt: oneHourAgo },
   }).select('_id');
 
   if (!staleUsers.length) {
@@ -75,6 +76,7 @@ const cleanupUnverifiedAccounts = async () => {
     BusinessProfile.deleteMany({ userId: { $in: ids } }),
     SocialLink.deleteMany({ userId: { $in: ids } }),
     Product.deleteMany({ userId: { $in: ids } }),
+    VerificationCode.deleteMany({ accountModel: 'User', 'meta.userId': { $in: ids.map((id) => String(id)) } }),
     User.deleteMany({ _id: { $in: ids } }),
   ]);
 

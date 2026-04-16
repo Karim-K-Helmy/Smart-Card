@@ -2,7 +2,17 @@ const userService = require('./user.service');
 
 const register = async (req, res) => {
   const data = await userService.register(req.body);
-  res.status(201).json({ success: true, message: 'تم إنشاء الحساب وتفعيله مباشرة', data });
+  res.status(201).json({ success: true, message: 'تم إنشاء الحساب بنجاح. يرجى إدخال رمز التحقق لتأكيد الحساب.', data });
+};
+
+const verifyRegistrationOtp = async (req, res) => {
+  const data = await userService.verifyRegistrationOtp(req.body.email, req.body.code);
+  res.status(200).json({ success: true, message: 'تم تأكيد الحساب بنجاح', data });
+};
+
+const resendActivationCode = async (req, res) => {
+  const data = await userService.resendActivationCode(req.body.email);
+  res.status(200).json({ success: true, message: 'تم إعادة إرسال رمز التحقق', data });
 };
 
 const login = async (req, res) => {
@@ -11,12 +21,17 @@ const login = async (req, res) => {
 };
 
 const forgotPassword = async (req, res) => {
-  const data = await userService.forgotPassword(req.body.email, req.body.phone);
-  res.status(200).json({ success: true, message: 'تم التحقق من بيانات الحساب. يمكنك الآن تعيين كلمة مرور جديدة.', data });
+  const data = await userService.forgotPassword(req.body.identifier);
+  res.status(200).json({ success: true, message: 'تم إرسال رمز OTP إلى وسيلة التواصل المرتبطة بالحساب.', data });
+};
+
+const verifyForgotPasswordOtp = async (req, res) => {
+  const data = await userService.verifyForgotPasswordOtp(req.body.identifier, req.body.code);
+  res.status(200).json({ success: true, message: 'تم التحقق من رمز OTP بنجاح.', data });
 };
 
 const resetPassword = async (req, res) => {
-  const data = await userService.resetPassword(req.body.email, req.body.resetToken, req.body.newPassword);
+  const data = await userService.resetPassword(req.body.identifier, req.body.code, req.body.newPassword);
   res.status(200).json({ success: true, message: 'تم تغيير كلمة المرور بنجاح', data });
 };
 
@@ -47,48 +62,51 @@ const getMyNotificationCount = async (req, res) => {
 
 const markMyNotificationAsRead = async (req, res) => {
   const data = await userService.markMyNotificationAsRead(req.user, req.params.type);
-  res.status(200).json({ success: true, message: 'Notification marked as read successfully', data });
+  res.status(200).json({ success: true, message: 'Notifications marked as read', data });
 };
 
 const updateProfile = async (req, res) => {
-  const data = await userService.updateProfile(req.user, req.body, req.files);
+  const data = await userService.updateProfile(req.user._id, req.body, req.files || {});
   res.status(200).json({ success: true, message: 'Profile updated successfully', data });
 };
 
 const changePassword = async (req, res) => {
-  const data = await userService.changePassword(req.user, req.body.currentPassword, req.body.newPassword);
-  res.status(200).json({ success: true, message: 'Password changed successfully', data });
+  const data = await userService.changePassword(req.user._id, req.body.currentPassword, req.body.newPassword);
+  res.status(200).json({ success: true, message: 'Password updated successfully', data });
 };
 
 const createProduct = async (req, res) => {
-  const data = await userService.createProduct(req.user, req.body, req.files);
+  const data = await userService.createProduct(req.user._id, req.body, req.file || (req.files && req.files.productImage && req.files.productImage[0]));
   res.status(201).json({ success: true, message: 'Product created successfully', data });
 };
 
 const getMyProducts = async (req, res) => {
-  const data = await userService.getMyProducts(req.user);
+  const data = await userService.getMyProducts(req.user._id);
   res.status(200).json({ success: true, message: 'Products fetched successfully', data });
 };
 
 const updateProduct = async (req, res) => {
-  const data = await userService.updateProduct(req.user, req.params.productId, req.body, req.files);
+  const data = await userService.updateProduct(req.user._id, req.params.productId, req.body, req.file || (req.files && req.files.productImage && req.files.productImage[0]));
   res.status(200).json({ success: true, message: 'Product updated successfully', data });
 };
 
 const deleteProduct = async (req, res) => {
-  const data = await userService.deleteProduct(req.user, req.params.productId);
+  const data = await userService.deleteProduct(req.user._id, req.params.productId);
   res.status(200).json({ success: true, message: 'Product deleted successfully', data });
 };
 
 const getPublicProfile = async (req, res) => {
   const data = await userService.getPublicProfile(req.params.slug);
-  res.status(200).json({ success: true, message: 'Public profile fetched successfully', data });
+  res.status(200).json({ success: true, message: 'Profile fetched successfully', data });
 };
 
 module.exports = {
   register,
+  verifyRegistrationOtp,
+  resendActivationCode,
   login,
   forgotPassword,
+  verifyForgotPasswordOtp,
   resetPassword,
   checkPhoneExists,
   createDataRequest,

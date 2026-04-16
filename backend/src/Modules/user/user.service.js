@@ -10,11 +10,30 @@ const CardOrder = require('../../../DB/Models/cardOrder.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
 const Card = require('../../../DB/Models/card.model');
 const { AppError } = require('../../utils/errorhandling');
-const { signUserToken, signPasswordResetToken, verifyPasswordResetToken } = require('../../services/token.service');
+const { signUserToken } = require('../../services/token.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
+const { issueCode, consumeCode, findValidCode } = require('../../services/verification.service');
 
 const MAX_BUSINESS_LOCATIONS = 2;
 const MAX_PRODUCTS = 10;
+
+
+const maskEmail = (email = '') => {
+  const [name, domain] = String(email || '').split('@');
+  if (!name || !domain) return email;
+  const visible = name.length <= 2 ? name[0] || '*' : `${name.slice(0, 2)}***`;
+  return `${visible}@${domain}`;
+};
+
+const findUserByIdentifier = async (identifier, selectPassword = false) => {
+  const normalized = String(identifier || '').trim();
+  const email = normalized.toLowerCase();
+  let query = User.findOne({
+    $or: [{ email }, { phone: normalized }],
+  });
+  if (selectPassword) query = query.select('+passwordHash');
+  return query;
+};
 
 const sanitizeUser = (user) => {
   const object = user.toObject ? user.toObject() : { ...user };
@@ -180,8 +199,9 @@ const ensureActiveUser = (user) => {
 };
 
 const register = async (payload) => {
+  const normalizedEmail = payload.email.toLowerCase();
   const exists = await User.findOne({
-    $or: [{ email: payload.email.toLowerCase() }, { phone: payload.phone }],
+    $or: [{ email: normalizedEmail }, { phone: payload.phone }],
   });
 
   if (exists) {
@@ -191,15 +211,17 @@ const register = async (payload) => {
   const profileSlug = await generateUniqueSlug(payload.fullName);
   const user = await User.create({
     fullName: payload.fullName,
-    email: payload.email.toLowerCase(),
+    email: normalizedEmail,
     phone: payload.phone,
     whatsappNumber: payload.whatsappNumber || '',
     passwordHash: payload.password,
     currentPlan: 'NONE',
     profileSlug,
-    status: 'active',
-    emailVerified: true,
-    emailVerifiedAt: new Date(),
+    status: 'pending',
+    emailVerified: false,
+    emailVerifiedAt: null,
+    activationEmailSentAt: new Date(),
+    activationEmailSentCount: 1,
   });
 
   await Promise.all([
@@ -207,23 +229,35 @@ const register = async (payload) => {
     BusinessProfile.create({ userId: user._id }),
   ]);
 
-  user.lastLoginAt = new Date();
-  await user.save();
+  const otp = await issueCode({
+    email: user.email,
+    purpose: 'activate_account',
+    accountModel: 'User',
+    title: 'تأكيد الحساب الجديد',
+    greeting: `مرحبًا ${user.fullName}،`,
+    intro: 'تم إنشاء حسابك بنجاح. أدخل رمز التحقق التالي لتأكيد الحساب وتفعيل الدخول إلى لوحة المستخدم.',
+    meta: { userId: String(user._id) },
+  });
 
   return {
     user: sanitizeUser(user),
-    token: signUserToken(user._id),
+    verification: {
+      email: user.email,
+      expiresAt: otp.expiresAt,
+      sentTo: maskEmail(user.email),
+    },
   };
 };
 
 const login = async ({ emailOrPhone, password }) => {
-
-  const user = await User.findOne({
-    $or: [{ email: emailOrPhone.toLowerCase() }, { phone: emailOrPhone }],
-  }).select('+passwordHash');
+  const user = await findUserByIdentifier(emailOrPhone, true);
 
   if (!user) {
     throw new AppError('Invalid credentials', 401);
+  }
+
+  if (!user.emailVerified || user.status === 'pending') {
+    throw new AppError('يجب تأكيد الحساب أولاً باستخدام رمز OTP المرسل إلى بريدك الإلكتروني.', 403);
   }
 
   ensureActiveUser(user);
@@ -242,46 +276,141 @@ const login = async ({ emailOrPhone, password }) => {
   };
 };
 
-const forgotPassword = async (email, phone) => {
-  const user = await User.findOne({ email: email.toLowerCase(), phone });
+const forgotPassword = async (identifier) => {
+  const user = await findUserByIdentifier(identifier);
   if (!user) {
-    throw new AppError('البريد الإلكتروني أو رقم الهاتف غير مطابقين لبيانات الحساب', 404);
+    throw new AppError('لا يوجد حساب مطابق لهذا البريد الإلكتروني أو رقم الهاتف', 404);
+  }
+
+  if (!user.emailVerified || user.status === 'pending') {
+    throw new AppError('هذا الحساب غير مؤكد بعد. يرجى تأكيد الحساب أولاً.', 400);
   }
 
   ensureActiveUser(user);
 
+  const otp = await issueCode({
+    email: user.email,
+    purpose: 'reset_password',
+    accountModel: 'User',
+    title: 'رمز استعادة كلمة المرور',
+    greeting: `مرحبًا ${user.fullName}،`,
+    intro: 'وصلنا طلب لإعادة تعيين كلمة المرور. استخدم الرمز التالي لإكمال العملية.',
+    meta: { userId: String(user._id), identifier: String(identifier || '').trim() },
+  });
+
   return {
-    resetToken: signPasswordResetToken({
-      id: user._id,
-      email: user.email,
-      phone: user.phone,
-      role: 'user',
-      accountModel: 'User',
-    }),
+    identifier: String(identifier || '').trim(),
+    email: user.email,
+    sentTo: maskEmail(user.email),
+    expiresAt: otp.expiresAt,
   };
 };
 
-const resetPassword = async (email, resetToken, newPassword) => {
-  const decoded = verifyPasswordResetToken(resetToken);
-  if (decoded.accountModel !== 'User' || decoded.role !== 'user') {
-    throw new AppError('Invalid password reset token', 401);
+const verifyForgotPasswordOtp = async (identifier, code) => {
+  const user = await findUserByIdentifier(identifier);
+  if (!user) {
+    throw new AppError('لا يوجد حساب مطابق لهذا البريد الإلكتروني أو رقم الهاتف', 404);
   }
 
-  const normalizedEmail = email.toLowerCase();
-  if (decoded.email !== normalizedEmail) {
-    throw new AppError('Invalid password reset token', 401);
-  }
+  ensureActiveUser(user);
+  await findValidCode({
+    email: user.email,
+    code,
+    purpose: 'reset_password',
+    accountModel: 'User',
+  });
 
-  const user = await User.findOne({ _id: decoded.id, email: normalizedEmail, phone: decoded.phone }).select('+passwordHash');
+  return {
+    verified: true,
+    identifier: String(identifier || '').trim(),
+    email: user.email,
+  };
+};
+
+const resetPassword = async (identifier, code, newPassword) => {
+  const user = await findUserByIdentifier(identifier, true);
   if (!user) {
     throw new AppError('User not found', 404);
   }
 
   ensureActiveUser(user);
+  await consumeCode({
+    email: user.email,
+    code,
+    purpose: 'reset_password',
+    accountModel: 'User',
+  });
+
   user.passwordHash = newPassword;
   await user.save();
 
   return { changed: true };
+};
+
+const verifyRegistrationOtp = async (email, code) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash');
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  if (user.emailVerified && user.status === 'active') {
+    return {
+      user: sanitizeUser(user),
+      token: signUserToken(user._id),
+      alreadyVerified: true,
+    };
+  }
+
+  await consumeCode({
+    email: normalizedEmail,
+    code,
+    purpose: 'activate_account',
+    accountModel: 'User',
+  });
+
+  user.emailVerified = true;
+  user.emailVerifiedAt = new Date();
+  user.status = 'active';
+  user.lastLoginAt = new Date();
+  await user.save();
+
+  return {
+    user: sanitizeUser(user),
+    token: signUserToken(user._id),
+  };
+};
+
+const resendActivationCode = async (email) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = await User.findOne({ email: normalizedEmail });
+  if (!user) {
+    throw new AppError('User not found', 404);
+  }
+
+  if (user.emailVerified && user.status === 'active') {
+    throw new AppError('تم تأكيد هذا الحساب بالفعل', 400);
+  }
+
+  const otp = await issueCode({
+    email: user.email,
+    purpose: 'activate_account',
+    accountModel: 'User',
+    title: 'إعادة إرسال رمز تأكيد الحساب',
+    greeting: `مرحبًا ${user.fullName}،`,
+    intro: 'هذا هو رمز التحقق الجديد لإكمال تأكيد حسابك.',
+    meta: { userId: String(user._id) },
+  });
+
+  user.activationEmailSentAt = new Date();
+  user.activationEmailSentCount = Number(user.activationEmailSentCount || 0) + 1;
+  await user.save();
+
+  return {
+    email: user.email,
+    sentTo: maskEmail(user.email),
+    expiresAt: otp.expiresAt,
+  };
 };
 
 
@@ -779,8 +908,11 @@ const getPublicProfile = async (slug) => {
 
 module.exports = {
   register,
+  verifyRegistrationOtp,
+  resendActivationCode,
   login,
   forgotPassword,
+  verifyForgotPasswordOtp,
   resetPassword,
   checkPhoneExists,
   createDataRequest,

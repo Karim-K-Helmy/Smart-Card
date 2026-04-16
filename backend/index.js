@@ -69,8 +69,8 @@ setInterval(() => {
   cleanupUnverifiedAccounts()
     .then((result) => {
       if (result?.deletedUsers) {
-        console.log(`Cleanup removed ${result.deletedUsers} inactive accounts`);
+        console.log(`Cleanup removed ${result.deletedUsers} unverified accounts`);
       }
     })
     .catch((error) => console.error('Cleanup failed:', error.message));
-}, 12 * 60 * 60 * 1000);
+}, 10 * 60 * 1000);

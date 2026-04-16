@@ -22,7 +22,8 @@ const adminNav = [
   { to: '/admin/payments', label: 'المدفوعات', icon: 'fa-money-bill-wave', badgeKey: 'payments' },
   { to: '/admin/cards', label: 'البطاقات', icon: 'fa-id-card' },
   { to: '/admin/messages', label: 'الرسائل', icon: 'fa-message', badgeKey: 'messages' },
-  { to: '/admin/data-requests', label: 'طلبات العملاء', icon: 'fa-file-pen' },
+  { to: '/admin/admins', label: 'إدارة المشرفين', icon: 'fa-user-shield' },
+  { to: '/admin/resource-monitoring', label: 'حالة النظام', icon: 'fa-chart-line' },
   { to: '/admin/actions', label: 'سجل العمليات', icon: 'fa-clipboard-check' },
   { to: '/admin/settings', label: 'الإعدادات', icon: 'fa-gears' },
 ];

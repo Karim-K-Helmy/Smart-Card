@@ -9,9 +9,10 @@ const Message = require('../../../DB/Models/message.model');
 const DataRequest = require('../../../DB/Models/dataRequest.model');
 const { AppError } = require('../../utils/errorhandling');
 const { signAdminToken } = require('../../services/token.service');
-const { issueCode, consumeCode } = require('../../services/verification.service');
+const { issueCode, consumeCode, findValidCode } = require('../../services/verification.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
 const logAdminAction = require('../../services/admin-log.service');
+const { getResourceMonitoringSnapshot } = require('../../services/resource-monitor.service');
 
 const getConfiguredAdminEmails = (fallbackEmail = '') => {
   const raw = [process.env.ADMIN_EMAIL, process.env.ADMIN_SEED_EMAIL, fallbackEmail]
@@ -54,6 +55,14 @@ const sanitizeAdmin = (admin) => {
 };
 
 const ADMIN_NOTIFICATION_TYPES = ['messages', 'orders', 'users', 'payments'];
+
+
+const maskEmail = (email = '') => {
+  const [name, domain] = String(email || '').split('@');
+  if (!name || !domain) return email;
+  const visible = name.length <= 2 ? name[0] || '*' : `${name.slice(0, 2)}***`;
+  return `${visible}@${domain}`;
+};
 
 const ensureValidNotificationType = (type) => {
   if (!ADMIN_NOTIFICATION_TYPES.includes(type)) {
@@ -169,19 +178,16 @@ const login = async ({ email, password }) => {
   };
 };
 
-const requireSuperAdmin = async (currentAdmin) => {
+const requireCurrentAdmin = async (currentAdmin) => {
   const adminDoc = await Admin.findById(currentAdmin?._id);
   if (!adminDoc) {
     throw new AppError('Admin not found', 404);
   }
-  if (!isPrimaryAdminEmail(adminDoc.email)) {
-    throw new AppError('هذه الصلاحية متاحة للمدير العام فقط', 403);
-  }
   return adminDoc;
 };
 
-const requestPasswordReset = async (email) => {
-  const normalizedEmail = String(email || '').trim().toLowerCase();
+const requestPasswordReset = async (identifier) => {
+  const normalizedEmail = String(identifier || '').trim().toLowerCase();
   const admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
 
   if (!admin) {
@@ -192,7 +198,7 @@ const requestPasswordReset = async (email) => {
     throw new AppError('يرجى الرجوع إلى المدير العام لإعادة تعيين كلمة المرور الخاصة بك', 403);
   }
 
-  return issueCode({
+  const otp = await issueCode({
     email: admin.email,
     purpose: 'admin_reset_password',
     accountModel: 'Admin',
@@ -202,10 +208,39 @@ const requestPasswordReset = async (email) => {
     helpText: 'هذا الرمز مخصص للمدير العام فقط. إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة.',
     meta: { adminId: String(admin._id), email: admin.email },
   });
+
+  return {
+    identifier: String(identifier || '').trim(),
+    email: admin.email,
+    sentTo: maskEmail(admin.email),
+    expiresAt: otp.expiresAt,
+  };
 };
 
-const resetPassword = async (email, code, newPassword) => {
-  const normalizedEmail = String(email || '').trim().toLowerCase();
+const verifyPasswordResetOtp = async (identifier, code) => {
+  const normalizedEmail = String(identifier || '').trim().toLowerCase();
+  const admin = await Admin.findOne({ email: normalizedEmail });
+
+  if (!admin) {
+    throw new AppError('لا يوجد حساب إدارة بهذا البريد الإلكتروني', 404);
+  }
+
+  if (!isPrimaryAdminEmail(admin.email)) {
+    throw new AppError('يرجى الرجوع إلى المدير العام لإعادة تعيين كلمة المرور الخاصة بك', 403);
+  }
+
+  await findValidCode({
+    email: normalizedEmail,
+    code,
+    purpose: 'admin_reset_password',
+    accountModel: 'Admin',
+  });
+
+  return { verified: true, identifier: normalizedEmail, email: admin.email };
+};
+
+const resetPassword = async (identifier, code, newPassword) => {
+  const normalizedEmail = String(identifier || '').trim().toLowerCase();
   const admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
 
   if (!admin) {
@@ -227,6 +262,11 @@ const resetPassword = async (email, code, newPassword) => {
   await admin.save();
 
   return { changed: true };
+};
+
+
+const getResourceMonitoring = async () => {
+  return getResourceMonitoringSnapshot();
 };
 
 const getDashboard = async () => {
@@ -300,13 +340,21 @@ const updateMe = async (currentAdmin, payload, file) => {
   return sanitizeAdmin(admin);
 };
 
-const listAdmins = async () => {
-  const data = await Admin.find().sort({ createdAt: -1 });
+const listAdmins = async ({ search = '' } = {}) => {
+  const filter = {};
+  const normalizedSearch = String(search || '').trim();
+  if (normalizedSearch) {
+    filter.$or = [
+      { name: { $regex: normalizedSearch, $options: 'i' } },
+      { email: { $regex: normalizedSearch, $options: 'i' } },
+    ];
+  }
+  const data = await Admin.find(filter).sort({ createdAt: -1 });
   return data.map(sanitizeAdmin);
 };
 
 const createAdmin = async (currentAdmin, payload) => {
-  await requireSuperAdmin(currentAdmin);
+  const actor = await requireCurrentAdmin(currentAdmin);
   const exists = await Admin.findOne({ email: payload.email.toLowerCase() });
   if (exists) {
     throw new AppError('Admin email already exists', 409);
@@ -320,7 +368,7 @@ const createAdmin = async (currentAdmin, payload) => {
   });
 
   await logAdminAction({
-    adminId: currentAdmin._id,
+    adminId: actor._id,
     actionType: 'create',
     targetTable: 'Admins',
     targetId: admin._id,
@@ -331,13 +379,17 @@ const createAdmin = async (currentAdmin, payload) => {
 };
 
 const updateAdmin = async (currentAdmin, adminId, payload) => {
-  await requireSuperAdmin(currentAdmin);
+  const actor = await requireCurrentAdmin(currentAdmin);
   const admin = await Admin.findById(adminId).select('+passwordHash');
   if (!admin) {
     throw new AppError('Admin not found', 404);
   }
 
   const targetIsPrimary = isPrimaryAdminEmail(admin.email);
+
+  if (targetIsPrimary && String(actor._id) !== String(admin._id)) {
+    throw new AppError('لا يمكن تعديل حساب المدير الأساسي إلا من داخل حسابه.', 403);
+  }
 
   if (payload.name !== undefined) admin.name = payload.name;
   if (payload.role !== undefined && !targetIsPrimary) admin.role = payload.role;
@@ -361,7 +413,7 @@ const updateAdmin = async (currentAdmin, adminId, payload) => {
   await admin.save();
 
   await logAdminAction({
-    adminId: currentAdmin._id,
+    adminId: actor._id,
     actionType: 'edit',
     targetTable: 'Admins',
     targetId: admin._id,
@@ -372,8 +424,8 @@ const updateAdmin = async (currentAdmin, adminId, payload) => {
 };
 
 const deleteAdmin = async (currentAdmin, adminId) => {
-  await requireSuperAdmin(currentAdmin);
-  if (String(currentAdmin._id) === String(adminId)) {
+  const actor = await requireCurrentAdmin(currentAdmin);
+  if (String(actor._id) === String(adminId)) {
     throw new AppError('لا يمكنك حذف حساب الأدمن الحالي', 400);
   }
 
@@ -389,7 +441,7 @@ const deleteAdmin = async (currentAdmin, adminId) => {
   await admin.deleteOne();
 
   await logAdminAction({
-    adminId: currentAdmin._id,
+    adminId: actor._id,
     actionType: 'delete',
     targetTable: 'Admins',
     targetId: adminId,
@@ -738,8 +790,10 @@ const updateDataRequestStatus = async (admin, requestId, status) => {
 module.exports = {
   login,
   requestPasswordReset,
+  verifyPasswordResetOtp,
   resetPassword,
   getDashboard,
+  getResourceMonitoring,
   getNotificationSummary,
   getNotificationCount,
   markNotificationAsRead,

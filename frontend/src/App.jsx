@@ -34,6 +34,8 @@ import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminActionsPage from './pages/admin/AdminActionsPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
 import AdminDataRequestsPage from './pages/admin/AdminDataRequestsPage';
+import AdminManagementPage from './pages/admin/AdminManagementPage';
+import AdminResourceMonitoringPage from './pages/admin/AdminResourceMonitoringPage';
 
 function App() {
   return (
@@ -91,8 +93,9 @@ function App() {
         <Route path="payments" element={<AdminPaymentsPage />} />
         <Route path="cards" element={<AdminCardsPage />} />
         <Route path="messages" element={<AdminMessagesPage />} />
+        <Route path="admins" element={<AdminManagementPage />} />
+        <Route path="resource-monitoring" element={<AdminResourceMonitoringPage />} />
         <Route path="actions" element={<AdminActionsPage />} />
-        <Route path="data-requests" element={<AdminDataRequestsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 
