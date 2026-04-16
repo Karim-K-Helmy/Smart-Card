@@ -6,7 +6,7 @@ import { getMyProfile, updateProfile } from '../../services/api/users';
 import { extractApiError } from '../../utils/api';
 import { translateDisplayValue } from '../../utils/display';
 
-export default function PersonalProfilePage() {
+export default function PersonalProfilePage({ embedded = false }) {
   const [form, setForm] = useState({ jobTitle: '', aboutText: '', birthDate: '' });
   const [status, setStatus] = useState({ loading: true, saving: false, error: '', success: '', currentPlan: 'NONE' });
 
@@ -44,8 +44,8 @@ export default function PersonalProfilePage() {
   };
 
   return (
-    <div className="stack-lg">
-      <PageHeader title="البروفايل الشخصي" text="بياناتك الأساسية تظهر بشكل مختصر في باقة Star ويمكن الاستفادة منها أيضًا داخل باقة Pro." />
+    <div className={embedded ? 'stack-md profile-section-embedded' : 'stack-lg'}>
+      {!embedded ? <PageHeader title="البروفايل الشخصي" text="بياناتك الأساسية تظهر بشكل مختصر في باقة Star ويمكن الاستفادة منها أيضًا داخل باقة Pro." /> : null}
       <Card icon="fa-user-large">
         <p className="muted">الباقة الحالية: {translateDisplayValue(status.currentPlan)}</p>
         <form className="form-card" onSubmit={handleSubmit}>

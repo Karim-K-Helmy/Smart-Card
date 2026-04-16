@@ -28,6 +28,7 @@ function normalizeUser(user) {
     role: user.role || 'user',
     avatarUrl: user.avatarUrl || user.profileImage || '',
     emailVerified: Boolean(user.emailVerified ?? true),
+    isPrimaryAdmin: Boolean(user.isPrimaryAdmin),
   };
 }
 

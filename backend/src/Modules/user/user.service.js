@@ -4,6 +4,7 @@ const PersonalProfile = require('../../../DB/Models/personalProfile.model');
 const BusinessProfile = require('../../../DB/Models/businessProfile.model');
 const SocialLink = require('../../../DB/Models/socialLink.model');
 const Product = require('../../../DB/Models/product.model');
+const DataRequest = require('../../../DB/Models/dataRequest.model');
 const Category = require('../../../DB/Models/category.model');
 const CardOrder = require('../../../DB/Models/cardOrder.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
@@ -19,6 +20,57 @@ const sanitizeUser = (user) => {
   delete object.__v;
   return object;
 };
+
+
+const normalizeBusinessLocations = (businessLocations) => {
+  if (businessLocations === undefined) {
+    return undefined;
+  }
+
+  if (typeof businessLocations === 'string') {
+    if (!businessLocations.trim()) {
+      return [];
+    }
+    try {
+      return JSON.parse(businessLocations);
+    } catch (error) {
+      throw new AppError('businessLocations must be a valid JSON array', 400);
+    }
+  }
+
+  if (!Array.isArray(businessLocations)) {
+    throw new AppError('businessLocations must be an array', 400);
+  }
+
+  return businessLocations;
+};
+
+const normalizeStoredBusinessLocations = (businessProfile) => {
+  if (Array.isArray(businessProfile?.businessLocations) && businessProfile.businessLocations.length) {
+    return businessProfile.businessLocations;
+  }
+
+  const fallbackImages = businessProfile?.logo ? [{ url: businessProfile.logo, publicId: businessProfile.logoPublicId || '' }] : [];
+  const hasFallbackData = businessProfile?.businessName || businessProfile?.businessDescription || businessProfile?.address || businessProfile?.googleMapsLink || businessProfile?.phone || businessProfile?.whatsappNumber || businessProfile?.facebookLink || businessProfile?.email || fallbackImages.length;
+
+  if (!hasFallbackData) {
+    return [];
+  }
+
+  return [{
+    name: businessProfile.businessName || '',
+    description: businessProfile.businessDescription || '',
+    address: businessProfile.address || '',
+    googleMapsLink: businessProfile.googleMapsLink || '',
+    phone: businessProfile.phone || '',
+    whatsappNumber: businessProfile.whatsappNumber || '',
+    facebookLink: businessProfile.facebookLink || '',
+    email: businessProfile.email || '',
+    images: fallbackImages,
+    sortOrder: 0,
+  }];
+};
+
 
 const normalizeSocialLinks = (socialLinks) => {
   if (socialLinks === undefined) {
@@ -96,15 +148,20 @@ const buildProfileResponse = async (userDoc) => {
   const user = sanitizeUser(userDoc);
   const [personalProfile, businessProfile, socialLinks, products] = await Promise.all([
     PersonalProfile.findOne({ userId: userDoc._id }),
-    BusinessProfile.findOne({ userId: userDoc._id }).populate('categoryId'),
+    BusinessProfile.findOne({ userId: userDoc._id }),
     SocialLink.find({ userId: userDoc._id }).sort({ sortOrder: 1 }),
     Product.find({ userId: userDoc._id }).populate('categoryId').sort({ sortOrder: 1, createdAt: -1 }),
   ]);
 
+  const businessProfileObject = businessProfile ? (businessProfile.toObject ? businessProfile.toObject() : { ...businessProfile }) : null;
+  if (businessProfileObject) {
+    businessProfileObject.businessLocations = normalizeStoredBusinessLocations(businessProfileObject);
+  }
+
   return {
     user,
     personalProfile,
-    businessProfile,
+    businessProfile: businessProfileObject,
     socialLinks,
     products: user.currentPlan === 'PRO' ? products : [],
   };
@@ -222,6 +279,34 @@ const resetPassword = async (email, resetToken, newPassword) => {
   await user.save();
 
   return { changed: true };
+};
+
+
+const checkPhoneExists = async (phone) => {
+  const user = await User.findOne({ phone: String(phone || '').trim() }).select('_id phone status');
+
+  if (!user || user.status === 'deleted') {
+    throw new AppError('هذا الرقم غير مسجل لدينا', 404);
+  }
+
+  return { exists: true, phone: user.phone };
+};
+
+const createDataRequest = async ({ phone, notes }) => {
+  const normalizedPhone = String(phone || '').trim();
+  const user = await User.findOne({ phone: normalizedPhone }).select('_id phone status');
+
+  if (!user || user.status === 'deleted') {
+    throw new AppError('هذا الرقم غير مسجل لدينا', 404);
+  }
+
+  const request = await DataRequest.create({
+    phone: normalizedPhone,
+    notes: String(notes || '').trim(),
+    status: 'pending',
+  });
+
+  return request;
 };
 
 const getMyProfile = async (userId) => {
@@ -431,6 +516,7 @@ const updateProfile = async (currentUser, payload, files) => {
   }
 
   const socialLinks = normalizeSocialLinks(payload.socialLinks);
+  const businessLocations = normalizeBusinessLocations(payload.businessLocations);
   const normalizedEmail = payload.email ? payload.email.toLowerCase() : undefined;
 
 
@@ -475,24 +561,59 @@ const updateProfile = async (currentUser, payload, files) => {
   if (payload.birthDate !== undefined) personalProfile.birthDate = payload.birthDate || null;
   await personalProfile.save();
 
-  if (payload.categoryId) {
-    await getCategoryIfExists(payload.categoryId);
-  }
-
   const businessProfile = (await BusinessProfile.findOne({ userId: user._id })) || new BusinessProfile({ userId: user._id });
-  if (payload.businessName !== undefined) businessProfile.businessName = payload.businessName || '';
-  if (payload.businessDescription !== undefined) businessProfile.businessDescription = payload.businessDescription || '';
-  if (payload.address !== undefined) businessProfile.address = payload.address || '';
-  if (payload.categoryId !== undefined) businessProfile.categoryId = payload.categoryId || null;
-  if (payload.promoBoxText !== undefined) businessProfile.promoBoxText = payload.promoBoxText || '';
 
-  if (files?.logo?.[0]) {
-    const uploadedLogo = await optimizeAndUpload(files.logo[0].path, 'linestart/business-logos');
-    if (businessProfile.logoPublicId) {
-      await removeFromCloudinary(businessProfile.logoPublicId);
+  if (businessLocations !== undefined) {
+    const previousLocations = normalizeStoredBusinessLocations(businessProfile.toObject ? businessProfile.toObject() : businessProfile);
+    const previousImages = previousLocations.flatMap((location) => location.images || []);
+    const preparedLocations = [];
+
+    for (let index = 0; index < businessLocations.length; index += 1) {
+      const item = businessLocations[index] || {};
+      const retainedImages = (item.existingImages || [])
+        .map((imageUrl) => previousImages.find((image) => image.url === imageUrl))
+        .filter(Boolean);
+      const uploadedImages = [];
+
+      for (const file of (files?.[`businessLocationImages_${index}`] || []).slice(0, 5)) {
+        const uploaded = await optimizeAndUpload(file.path, 'linestart/business-locations');
+        uploadedImages.push({ url: uploaded.secureUrl, publicId: uploaded.publicId });
+      }
+
+      preparedLocations.push({
+        name: item.name || '',
+        description: item.description || '',
+        address: item.address || '',
+        googleMapsLink: item.googleMapsLink || '',
+        phone: item.phone || '',
+        whatsappNumber: item.whatsappNumber || '',
+        facebookLink: item.facebookLink || '',
+        email: item.email || '',
+        images: [...retainedImages, ...uploadedImages].slice(0, 5),
+        sortOrder: item.sortOrder ?? index,
+      });
     }
-    businessProfile.logo = uploadedLogo.secureUrl;
-    businessProfile.logoPublicId = uploadedLogo.publicId;
+
+    const currentImages = preparedLocations.flatMap((location) => location.images || []);
+    const removedImages = previousImages.filter((image) => !currentImages.some((currentImage) => currentImage.url === image.url));
+    for (const image of removedImages) {
+      await removeFromCloudinary(image.publicId);
+    }
+
+    businessProfile.businessLocations = preparedLocations;
+
+    const firstLocation = preparedLocations[0] || {};
+    const firstImage = firstLocation.images?.[0] || {};
+    businessProfile.businessName = firstLocation.name || '';
+    businessProfile.businessDescription = firstLocation.description || '';
+    businessProfile.address = firstLocation.address || '';
+    businessProfile.googleMapsLink = firstLocation.googleMapsLink || '';
+    businessProfile.phone = firstLocation.phone || '';
+    businessProfile.whatsappNumber = firstLocation.whatsappNumber || '';
+    businessProfile.facebookLink = firstLocation.facebookLink || '';
+    businessProfile.email = firstLocation.email || '';
+    businessProfile.logo = firstImage.url || '';
+    businessProfile.logoPublicId = firstImage.publicId || '';
   }
 
   await businessProfile.save();
@@ -644,6 +765,8 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  checkPhoneExists,
+  createDataRequest,
   getMyProfile,
   getMyNotifications,
   getMyNotificationCount,

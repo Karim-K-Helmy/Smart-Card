@@ -12,13 +12,16 @@ const loginSchema = Joi.object({
 });
 
 const forgotPasswordSchema = Joi.object({
-  body: Joi.object({}).required(),
+  body: Joi.object({
+    email: Joi.string().email().required(),
+  }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
 });
 
 const resetPasswordSchema = Joi.object({
   body: Joi.object({
+    email: Joi.string().email().required(),
     code: Joi.string().length(6).required(),
     newPassword: Joi.string().min(6).max(100).required(),
   }).required(),
@@ -87,6 +90,16 @@ const updateAdminSchema = Joi.object({
   query: Joi.object({}),
 });
 
+const dataRequestStatusSchema = Joi.object({
+  body: Joi.object({
+    status: Joi.string().valid('pending', 'in_review', 'completed', 'rejected').required(),
+  }).required(),
+  params: Joi.object({
+    requestId: mongoId.required(),
+  }).required(),
+  query: Joi.object({}),
+});
+
 module.exports = {
   loginSchema,
   forgotPasswordSchema,
@@ -96,4 +109,5 @@ module.exports = {
   adminProfileUpdateSchema,
   createAdminSchema,
   updateAdminSchema,
+  dataRequestStatusSchema,
 };

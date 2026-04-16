@@ -7,7 +7,7 @@ import { extractApiError, toFormData } from '../../utils/api';
 
 const emptyLink = { platformName: '', url: '' };
 
-export default function SocialLinksPage() {
+export default function SocialLinksPage({ embedded = false }) {
   const [links, setLinks] = useState([emptyLink]);
   const [status, setStatus] = useState({ loading: true, saving: false, error: '', success: '' });
 
@@ -45,9 +45,10 @@ export default function SocialLinksPage() {
   };
 
   return (
-    <div className="stack-lg">
-      <PageHeader title="روابط السوشيال" text="أضف الروابط التي ستظهر في البروفايل العام." actions={<Button variant="secondary" onClick={() => setLinks((prev) => [...prev, emptyLink])}>إضافة رابط</Button>} />
+    <div className={embedded ? 'stack-md profile-section-embedded' : 'stack-lg'}>
+      {!embedded ? <PageHeader title="روابط السوشيال" text="أضف الروابط التي ستظهر في البروفايل العام." actions={<Button variant="secondary" onClick={() => setLinks((prev) => [...prev, emptyLink])}>إضافة رابط</Button>} /> : null}
       <Card>
+        {embedded ? <div className="embedded-section-action"><Button variant="secondary" onClick={() => setLinks((prev) => [...prev, emptyLink])}>إضافة رابط</Button></div> : null}
         <form className="form-card" onSubmit={handleSubmit}>
           {links.map((link, index) => (
             <div key={index} className="form-grid">

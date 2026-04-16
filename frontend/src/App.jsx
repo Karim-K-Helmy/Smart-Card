@@ -22,6 +22,7 @@ import RequestCardPage from './pages/user/RequestCardPage';
 import OrdersPage from './pages/user/OrdersPage';
 import MyCardPage from './pages/user/MyCardPage';
 import NotificationsPage from './pages/user/NotificationsPage';
+import ProfileManagerPage from './pages/user/ProfileManagerPage';
 import AdminLoginPage from './pages/admin/AdminLoginPage';
 import AdminForgotPasswordPage from './pages/admin/AdminForgotPasswordPage';
 import AdminDashboardPage from './pages/admin/AdminDashboardPage';
@@ -32,6 +33,7 @@ import AdminCardsPage from './pages/admin/AdminCardsPage';
 import AdminMessagesPage from './pages/admin/AdminMessagesPage';
 import AdminActionsPage from './pages/admin/AdminActionsPage';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage';
+import AdminDataRequestsPage from './pages/admin/AdminDataRequestsPage';
 
 function App() {
   return (
@@ -46,8 +48,9 @@ function App() {
         <Route path="/auth/login" element={<LoginPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
-        <Route path="/profile/:slug" element={<PublicProfilePage />} />
       </Route>
+
+      <Route path="/profile/:slug" element={<PublicProfilePage />} />
 
       <Route
         path="/dashboard"
@@ -59,10 +62,11 @@ function App() {
       >
         <Route index element={<DashboardPage />} />
         <Route path="account" element={<AccountPage />} />
-        <Route path="personal-profile" element={<PersonalProfilePage />} />
-        <Route path="business-profile" element={<BusinessProfilePage />} />
-        <Route path="social-links" element={<SocialLinksPage />} />
-        <Route path="products" element={<ProductsPage />} />
+        <Route path="profile-manager" element={<ProfileManagerPage />} />
+        <Route path="personal-profile" element={<Navigate to="/dashboard/profile-manager?tab=personal" replace />} />
+        <Route path="business-profile" element={<Navigate to="/dashboard/profile-manager?tab=business" replace />} />
+        <Route path="social-links" element={<Navigate to="/dashboard/profile-manager?tab=social" replace />} />
+        <Route path="products" element={<Navigate to="/dashboard/profile-manager?tab=products" replace />} />
         <Route path="request-card" element={<RequestCardPage />} />
         <Route path="payment" element={<Navigate to="/dashboard/request-card" replace />} />
         <Route path="upload-receipt" element={<Navigate to="/dashboard/request-card" replace />} />
@@ -88,6 +92,7 @@ function App() {
         <Route path="cards" element={<AdminCardsPage />} />
         <Route path="messages" element={<AdminMessagesPage />} />
         <Route path="actions" element={<AdminActionsPage />} />
+        <Route path="data-requests" element={<AdminDataRequestsPage />} />
         <Route path="settings" element={<AdminSettingsPage />} />
       </Route>
 

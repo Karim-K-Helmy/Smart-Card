@@ -1,36 +1,58 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
-import { forgotPassword } from '../../services/api/auth';
+import { checkUserPhone, createUserDataRequest } from '../../services/api/auth';
 import { extractApiError } from '../../utils/api';
 
 export default function ForgotPasswordPage() {
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', phone: '' });
+  const [form, setForm] = useState({ phone: '', notes: '' });
+  const [step, setStep] = useState('verify');
   const [status, setStatus] = useState({ loading: false, error: '', success: '' });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleVerify = async (event) => {
+    event.preventDefault();
     setStatus({ loading: true, error: '', success: '' });
     try {
-      const { data } = await forgotPassword(form);
-      setStatus({ loading: false, error: '', success: 'تم التحقق من البريد ورقم الهاتف.' });
-      navigate(`/auth/reset-password?email=${encodeURIComponent(form.email)}&resetToken=${encodeURIComponent(data.data?.resetToken || '')}`);
-    } catch (apiError) {
-      setStatus({ loading: false, error: extractApiError(apiError), success: '' });
+      await checkUserPhone({ phone: form.phone });
+      setStep('confirm');
+      setStatus({ loading: false, error: '', success: 'تم العثور على الرقم. يمكنك الآن تأكيد إرسال الطلب.' });
+    } catch (error) {
+      setStep('verify');
+      setStatus({ loading: false, error: extractApiError(error), success: '' });
+    }
+  };
+
+  const handleConfirm = async () => {
+    setStatus({ loading: true, error: '', success: '' });
+    try {
+      const response = await createUserDataRequest(form);
+      setStatus({ loading: false, error: '', success: response.data?.message || 'تم تقديم طلبك، جاري مراجعته وسوف تتلقى رسالة على الواتساب الخاص بك' });
+      setForm({ phone: '', notes: '' });
+      setStep('verify');
+    } catch (error) {
+      setStatus({ loading: false, error: extractApiError(error), success: '' });
     }
   };
 
   return (
     <section className="auth-section">
-      <Card className="auth-card" title="استعادة كلمة المرور">
-        <form className="form-card" onSubmit={handleSubmit}>
-          <label><span>البريد الإلكتروني</span><input type="email" required placeholder="name@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
-          <label><span>رقم الهاتف</span><input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+      <Card className="auth-card" title="طلب نسيان كلمة المرور أو تعديل البيانات">
+        <form className="form-card" onSubmit={handleVerify}>
+          <label>
+            <span>رقم الهاتف</span>
+            <input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="أدخل رقم الهاتف المسجل" />
+          </label>
+          <label>
+            <span>ملاحظات</span>
+            <textarea rows="4" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="مثال: نسيت الباسورد، أريد تعديل رقم الواتساب" />
+          </label>
           {status.error ? <p className="error-text">{status.error}</p> : null}
           {status.success ? <p className="success-text">{status.success}</p> : null}
-          <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ التحقق...' : 'متابعة تعيين كلمة المرور'}</Button>
+          {step === 'verify' ? (
+            <Button type="submit" disabled={status.loading}>{status.loading ? 'جارٍ التحقق...' : 'تحقق من الرقم'}</Button>
+          ) : (
+            <Button type="button" onClick={handleConfirm} disabled={status.loading}>{status.loading ? 'جارٍ إرسال الطلب...' : 'اضغط لتأكيد إرسال الطلب'}</Button>
+          )}
         </form>
       </Card>
     </section>

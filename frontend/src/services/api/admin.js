@@ -23,3 +23,6 @@ export const listOrders = (params) => http.get('/admin/orders', { params });
 export const listCards = (params) => http.get('/admin/cards', { params });
 export const listActions = (params) => http.get('/admin/actions', { params });
 export const toggleCardStatus = (cardId, payload) => http.patch(`/admin/cards/${cardId}/status`, payload);
+
+export const listDataRequests = () => http.get('/admin/data-requests');
+export const updateDataRequestStatus = (requestId, payload) => http.patch(`/admin/data-requests/${requestId}/status`, payload);

@@ -6,13 +6,13 @@ const login = async (req, res) => {
 };
 
 const forgotPassword = async (req, res) => {
-  const data = await adminService.requestPasswordReset();
-  res.status(200).json({ success: true, message: 'تم إيقاف استعادة كلمة مرور الأدمن من هذه الواجهة', data });
+  const data = await adminService.requestPasswordReset(req.body.email);
+  res.status(200).json({ success: true, message: 'تم إرسال رمز التحقق إلى بريد المدير العام', data });
 };
 
 const resetPassword = async (req, res) => {
-  const data = await adminService.resetPassword(req.body.code, req.body.newPassword);
-  res.status(200).json({ success: true, message: 'تم إيقاف إعادة تعيين كلمة مرور الأدمن من هذه الواجهة', data });
+  const data = await adminService.resetPassword(req.body.email, req.body.code, req.body.newPassword);
+  res.status(200).json({ success: true, message: 'تم إعادة تعيين كلمة المرور بنجاح', data });
 };
 
 const dashboard = async (req, res) => {
@@ -105,6 +105,16 @@ const listActions = async (req, res) => {
   res.status(200).json({ success: true, message: 'Admin actions fetched successfully', data });
 };
 
+const listDataRequests = async (req, res) => {
+  const data = await adminService.listDataRequests();
+  res.status(200).json({ success: true, message: 'Data requests fetched successfully', data });
+};
+
+const updateDataRequestStatus = async (req, res) => {
+  const data = await adminService.updateDataRequestStatus(req.admin, req.params.requestId, req.body.status);
+  res.status(200).json({ success: true, message: 'Data request updated successfully', data });
+};
+
 module.exports = {
   login,
   forgotPassword,
@@ -127,4 +137,6 @@ module.exports = {
   listCards,
   toggleCardStatus,
   listActions,
+  listDataRequests,
+  updateDataRequestStatus,
 };

@@ -10,7 +10,7 @@ const iconRules = [
   { match: ['إنشاء حساب', 'register', 'حساب جديد'], icon: 'fa-user-plus' },
   { match: ['الحساب', 'الأمان', 'المصادقة', 'security'], icon: 'fa-shield-halved' },
   { match: ['البروفايل الشخصي', 'الملف الشخصي', 'شخصي'], icon: 'fa-user-large' },
-  { match: ['البروفايل التجاري', 'تجاري', 'النشاط', 'العلامة'], icon: 'fa-building' },
+  { match: ['الأماكن التجارية', 'البروفايل التجاري', 'تجاري', 'النشاط', 'العلامة', 'مكان'], icon: 'fa-building' },
   { match: ['روابط', 'السوشيال', 'social'], icon: 'fa-share-nodes' },
   { match: ['الأعمال', 'المنتجات', 'products'], icon: 'fa-briefcase' },
   { match: ['الطلبات', 'طلب'], icon: 'fa-clipboard-list' },

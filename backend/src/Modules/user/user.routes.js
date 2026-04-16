@@ -16,13 +16,15 @@ const {
   updateProductSchema,
   deleteProductSchema,
   publicProfileSchema,
+  checkPhoneSchema,
+  createDataRequestSchema,
 } = require('./user.validation');
 
 const router = express.Router();
 
 const profileUploader = uploadFields([
   { name: 'profileImage', maxCount: 1 },
-  { name: 'logo', maxCount: 1 },
+  ...Array.from({ length: 20 }, (_, index) => ({ name: `businessLocationImages_${index}`, maxCount: 5 })),
 ]);
 const productUploader = uploadFields([{ name: 'productImage', maxCount: 1 }]);
 
@@ -38,6 +40,8 @@ router.post('/register', validate(registerSchema), asyncHandler(controller.regis
 router.post('/login', validate(loginSchema), asyncHandler(controller.login));
 router.post('/forgot-password', validate(forgotPasswordSchema), asyncHandler(controller.forgotPassword));
 router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(controller.resetPassword));
+router.post('/check-phone', validate(checkPhoneSchema), asyncHandler(controller.checkPhoneExists));
+router.post('/data-requests', validate(createDataRequestSchema), asyncHandler(controller.createDataRequest));
 router.get('/profile', auth, asyncHandler(controller.getMyProfile));
 router.get('/notifications', auth, asyncHandler(controller.getMyNotifications));
 router.get('/notifications/:type/count', auth, validate(notificationTypeSchema), asyncHandler(controller.getMyNotificationCount));

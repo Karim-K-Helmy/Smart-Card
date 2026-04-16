@@ -8,10 +8,7 @@ import { translateDisplayValue } from '../../utils/display';
 const userNav = [
   { to: '/dashboard', label: 'الرئيسية', icon: 'fa-house' },
   { to: '/dashboard/account', label: 'الحساب', icon: 'fa-shield-halved' },
-  { to: '/dashboard/personal-profile', label: 'البروفايل الشخصي', icon: 'fa-user-large' },
-  { to: '/dashboard/business-profile', label: 'البروفايل التجاري', icon: 'fa-building' },
-  { to: '/dashboard/social-links', label: 'روابط السوشيال', icon: 'fa-share-nodes' },
-  { to: '/dashboard/products', label: 'الأعمال', icon: 'fa-briefcase' },
+  { to: '/dashboard/profile-manager', label: 'إدارة البروفايل', icon: 'fa-id-card-clip' },
   { to: '/dashboard/request-card', label: 'طلب البطاقة', icon: 'fa-id-card' },
   { to: '/dashboard/orders', label: 'الطلبات', icon: 'fa-clipboard-list', badgeKey: 'orders' },
   { to: '/dashboard/my-card', label: 'بطاقتي', icon: 'fa-id-badge' },
@@ -25,6 +22,7 @@ const adminNav = [
   { to: '/admin/payments', label: 'المدفوعات', icon: 'fa-money-bill-wave', badgeKey: 'payments' },
   { to: '/admin/cards', label: 'البطاقات', icon: 'fa-id-card' },
   { to: '/admin/messages', label: 'الرسائل', icon: 'fa-message', badgeKey: 'messages' },
+  { to: '/admin/data-requests', label: 'طلبات العملاء', icon: 'fa-file-pen' },
   { to: '/admin/actions', label: 'سجل العمليات', icon: 'fa-clipboard-check' },
   { to: '/admin/settings', label: 'الإعدادات', icon: 'fa-gears' },
 ];

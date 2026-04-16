@@ -42,31 +42,52 @@ const resetPasswordSchema = Joi.object({
   query: Joi.object({}),
 });
 
+const businessLocationSchema = Joi.object({
+  name: Joi.string().allow('', null),
+  description: Joi.string().allow('', null),
+  address: Joi.string().allow('', null),
+  googleMapsLink: Joi.string().allow('', null),
+  phone: Joi.string().allow('', null),
+  whatsappNumber: Joi.string().allow('', null),
+  facebookLink: Joi.string().allow('', null),
+  email: Joi.string().allow('', null),
+  sortOrder: Joi.number(),
+});
+
+const socialLinkSchema = Joi.object({
+  platformName: Joi.string().max(100).required(),
+  url: Joi.string().allow('', null).required(),
+  sortOrder: Joi.number(),
+});
+
 const updateProfileSchema = Joi.object({
   body: Joi.object({
     fullName: Joi.string().min(2).max(100),
-    email: Joi.string().email(),
     phone: Joi.string().min(6).max(20),
     whatsappNumber: Joi.string().allow('', null),
     bio: Joi.string().max(2000).allow('', null),
-    socialLinks: Joi.alternatives().try(
-      Joi.array().items(
-        Joi.object({
-          platformName: Joi.string().required(),
-          url: Joi.string().uri().required(),
-          sortOrder: Joi.number().integer().min(0),
-        })
-      ),
-      Joi.string()
-    ),
-    jobTitle: Joi.string().allow('', null),
-    aboutText: Joi.string().allow('', null),
-    birthDate: Joi.date().iso().allow('', null),
-    businessName: Joi.string().allow('', null),
-    businessDescription: Joi.string().allow('', null),
-    address: Joi.string().allow('', null),
-    categoryId: mongoId.allow('', null),
-    promoBoxText: Joi.string().allow('', null),
+    currentPlan: Joi.string().valid('NONE', 'STAR', 'PRO'),
+    personalProfile: Joi.object({
+      jobTitle: Joi.string().allow('', null),
+      companyName: Joi.string().allow('', null),
+      shortBio: Joi.string().allow('', null),
+      about: Joi.string().allow('', null),
+      address: Joi.string().allow('', null),
+      website: Joi.string().allow('', null),
+    }),
+    businessProfile: Joi.object({
+      businessName: Joi.string().allow('', null),
+      businessDescription: Joi.string().allow('', null),
+      address: Joi.string().allow('', null),
+      googleMapsLink: Joi.string().allow('', null),
+      phone: Joi.string().allow('', null),
+      whatsappNumber: Joi.string().allow('', null),
+      facebookLink: Joi.string().allow('', null),
+      email: Joi.string().allow('', null),
+      businessLocations: Joi.array().items(businessLocationSchema),
+    }),
+    businessLocations: Joi.array().items(businessLocationSchema),
+    socialLinks: Joi.array().items(socialLinkSchema),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -83,12 +104,15 @@ const changePasswordSchema = Joi.object({
 
 const createProductSchema = Joi.object({
   body: Joi.object({
-    name: Joi.string().min(2).max(100).required(),
-    description: Joi.string().max(120).allow('', null),
+    name: Joi.string().min(2).max(200).required(),
+    title: Joi.string().allow('', null),
+    description: Joi.string().allow('', null),
+    price: Joi.number().min(0).allow('', null),
+    currency: Joi.string().max(20).allow('', null),
+    ctaText: Joi.string().allow('', null),
+    ctaUrl: Joi.string().allow('', null),
+    sortOrder: Joi.number().allow('', null),
     categoryId: mongoId.allow('', null),
-    price: Joi.number().min(0).default(0),
-    isVisible: Joi.boolean().default(true),
-    sortOrder: Joi.number().integer().min(0).default(0),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -96,12 +120,15 @@ const createProductSchema = Joi.object({
 
 const updateProductSchema = Joi.object({
   body: Joi.object({
-    name: Joi.string().min(2).max(100),
-    description: Joi.string().max(120).allow('', null),
+    name: Joi.string().min(2).max(200),
+    title: Joi.string().allow('', null),
+    description: Joi.string().allow('', null),
+    price: Joi.number().min(0).allow('', null),
+    currency: Joi.string().max(20).allow('', null),
+    ctaText: Joi.string().allow('', null),
+    ctaUrl: Joi.string().allow('', null),
+    sortOrder: Joi.number().allow('', null),
     categoryId: mongoId.allow('', null),
-    price: Joi.number().min(0),
-    isVisible: Joi.boolean(),
-    sortOrder: Joi.number().integer().min(0),
   }).required(),
   params: Joi.object({
     productId: mongoId.required(),
@@ -125,6 +152,23 @@ const publicProfileSchema = Joi.object({
   query: Joi.object({}),
 });
 
+const checkPhoneSchema = Joi.object({
+  body: Joi.object({
+    phone: Joi.string().min(6).max(20).required(),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
+const createDataRequestSchema = Joi.object({
+  body: Joi.object({
+    phone: Joi.string().min(6).max(20).required(),
+    notes: Joi.string().allow('', null),
+  }).required(),
+  params: Joi.object({}),
+  query: Joi.object({}),
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -136,4 +180,6 @@ module.exports = {
   updateProductSchema,
   deleteProductSchema,
   publicProfileSchema,
+  checkPhoneSchema,
+  createDataRequestSchema,
 };

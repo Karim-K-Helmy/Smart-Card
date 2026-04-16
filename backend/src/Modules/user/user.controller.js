@@ -20,6 +20,16 @@ const resetPassword = async (req, res) => {
   res.status(200).json({ success: true, message: 'تم تغيير كلمة المرور بنجاح', data });
 };
 
+const checkPhoneExists = async (req, res) => {
+  const data = await userService.checkPhoneExists(req.body.phone);
+  res.status(200).json({ success: true, message: 'تم التحقق من الرقم بنجاح', data });
+};
+
+const createDataRequest = async (req, res) => {
+  const data = await userService.createDataRequest(req.body);
+  res.status(201).json({ success: true, message: 'تم تقديم طلبك، جاري مراجعته وسوف تتلقى رسالة على الواتساب الخاص بك', data });
+};
+
 const getMyProfile = async (req, res) => {
   const data = await userService.getMyProfile(req.user._id);
   res.status(200).json({ success: true, message: 'Profile fetched successfully', data });
@@ -80,6 +90,8 @@ module.exports = {
   login,
   forgotPassword,
   resetPassword,
+  checkPhoneExists,
+  createDataRequest,
   getMyProfile,
   getMyNotifications,
   getMyNotificationCount,

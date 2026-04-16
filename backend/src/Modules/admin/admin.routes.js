@@ -14,6 +14,7 @@ const {
   adminProfileUpdateSchema,
   createAdminSchema,
   updateAdminSchema,
+  dataRequestStatusSchema,
 } = require('./admin.validation');
 
 const router = express.Router();
@@ -66,5 +67,7 @@ router.get('/orders', auth, allowTo('admin', 'super_admin'), asyncHandler(contro
 router.get('/cards', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listCards));
 router.patch('/cards/:cardId/status', auth, allowTo('admin', 'super_admin'), validate(toggleCardSchema), asyncHandler(controller.toggleCardStatus));
 router.get('/actions', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listActions));
+router.get('/data-requests', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listDataRequests));
+router.patch('/data-requests/:requestId/status', auth, allowTo('admin', 'super_admin'), validate(dataRequestStatusSchema), asyncHandler(controller.updateDataRequestStatus));
 
 module.exports = router;

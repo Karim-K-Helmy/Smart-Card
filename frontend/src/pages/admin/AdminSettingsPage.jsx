@@ -98,6 +98,8 @@ export default function AdminSettingsPage() {
     instructions: '',
     isActive: true,
   });
+  const isSuperAdmin = Boolean(authState.user?.isPrimaryAdmin);
+
   const [newAdmin, setNewAdmin] = useState({
     name: '',
     email: '',
@@ -469,8 +471,9 @@ export default function AdminSettingsPage() {
             </div>
           </Card>
 
-          <Card title="إدارة حسابات الأدمن">
+          <Card title="إدارة الموظفين وحسابات الأدمن">
             <div className="stack-md">
+              {!isSuperAdmin ? <div className="notice-card notice-info"><strong>تنبيه</strong><p>إدارة الموظفين وتعديل كلمات مرورهم متاحة للمدير العام فقط.</p></div> : null}
               <form className="form-card" onSubmit={createAdminHandler}>
                 <div className="form-grid">
                   <label><span>الاسم</span><input required value={newAdmin.name} onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })} /></label>
@@ -480,7 +483,7 @@ export default function AdminSettingsPage() {
                   <label><span>كلمة المرور</span><input required type="password" value={newAdmin.password} onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })} /></label>
                   <label><span>الدور</span><input value={newAdmin.role} onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })} /></label>
                 </div>
-                <Button type="submit" disabled={adminsStatus.saving}>{adminsStatus.saving ? 'جارٍ الإنشاء...' : 'إضافة أدمن جديد'}</Button>
+                <Button type="submit" disabled={adminsStatus.saving || !isSuperAdmin}>{adminsStatus.saving ? 'جارٍ الإنشاء...' : 'إضافة أدمن جديد'}</Button>
               </form>
 
               <div className="table-like">
@@ -492,9 +495,9 @@ export default function AdminSettingsPage() {
                     </div>
                     <div className="row-actions align-end">
                       <Badge tone="info">{admin.role}</Badge>
-                      <Button variant="ghost" onClick={() => openEditAdminModal(admin)} disabled={adminsStatus.saving}>تعديل</Button>
+                      <Button variant="ghost" onClick={() => openEditAdminModal(admin)} disabled={adminsStatus.saving || !isSuperAdmin}>تعديل</Button>
                       {admin._id !== authState.user?._id ? (
-                        <Button variant="danger" onClick={() => askRemoveAdmin(admin)} disabled={adminsStatus.saving}>حذف</Button>
+                        <Button variant="danger" onClick={() => askRemoveAdmin(admin)} disabled={adminsStatus.saving || !isSuperAdmin}>حذف</Button>
                       ) : (
                         <Button variant="secondary" disabled>الحساب الحالي</Button>
                       )}

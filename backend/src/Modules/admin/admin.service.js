@@ -6,8 +6,10 @@ const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
 const Card = require('../../../DB/Models/card.model');
 const AdminAction = require('../../../DB/Models/adminAction.model');
 const Message = require('../../../DB/Models/message.model');
+const DataRequest = require('../../../DB/Models/dataRequest.model');
 const { AppError } = require('../../utils/errorhandling');
 const { signAdminToken } = require('../../services/token.service');
+const { issueCode, consumeCode } = require('../../services/verification.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
 const logAdminAction = require('../../services/admin-log.service');
 
@@ -167,12 +169,64 @@ const login = async ({ email, password }) => {
   };
 };
 
-const requestPasswordReset = async () => {
-  throw new AppError('تم إيقاف استعادة كلمة مرور الأدمن من هذه الواجهة بعد إزالة نظام رموز التحقق من المشروع.', 410);
+const requireSuperAdmin = async (currentAdmin) => {
+  const adminDoc = await Admin.findById(currentAdmin?._id);
+  if (!adminDoc) {
+    throw new AppError('Admin not found', 404);
+  }
+  if (!isPrimaryAdminEmail(adminDoc.email)) {
+    throw new AppError('هذه الصلاحية متاحة للمدير العام فقط', 403);
+  }
+  return adminDoc;
 };
 
-const resetPassword = async () => {
-  throw new AppError('تم إيقاف إعادة تعيين كلمة مرور الأدمن من هذه الواجهة بعد إزالة نظام رموز التحقق من المشروع.', 410);
+const requestPasswordReset = async (email) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
+
+  if (!admin) {
+    throw new AppError('لا يوجد حساب إدارة بهذا البريد الإلكتروني', 404);
+  }
+
+  if (!isPrimaryAdminEmail(admin.email)) {
+    throw new AppError('يرجى الرجوع إلى المدير العام لإعادة تعيين كلمة المرور الخاصة بك', 403);
+  }
+
+  return issueCode({
+    email: admin.email,
+    purpose: 'admin_reset_password',
+    accountModel: 'Admin',
+    title: 'رمز إعادة تعيين كلمة مرور المدير العام',
+    intro: 'استخدم رمز التحقق التالي لإعادة تعيين كلمة مرور المدير العام داخل لوحة الإدارة.',
+    greeting: `مرحبًا ${admin.name || 'Admin'}،`,
+    helpText: 'هذا الرمز مخصص للمدير العام فقط. إذا لم تطلب إعادة التعيين، تجاهل هذه الرسالة.',
+    meta: { adminId: String(admin._id), email: admin.email },
+  });
+};
+
+const resetPassword = async (email, code, newPassword) => {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const admin = await Admin.findOne({ email: normalizedEmail }).select('+passwordHash');
+
+  if (!admin) {
+    throw new AppError('لا يوجد حساب إدارة بهذا البريد الإلكتروني', 404);
+  }
+
+  if (!isPrimaryAdminEmail(admin.email)) {
+    throw new AppError('يرجى الرجوع إلى المدير العام لإعادة تعيين كلمة المرور الخاصة بك', 403);
+  }
+
+  await consumeCode({
+    email: normalizedEmail,
+    code,
+    purpose: 'admin_reset_password',
+    accountModel: 'Admin',
+  });
+
+  admin.passwordHash = newPassword;
+  await admin.save();
+
+  return { changed: true };
 };
 
 const getDashboard = async () => {
@@ -252,6 +306,7 @@ const listAdmins = async () => {
 };
 
 const createAdmin = async (currentAdmin, payload) => {
+  await requireSuperAdmin(currentAdmin);
   const exists = await Admin.findOne({ email: payload.email.toLowerCase() });
   if (exists) {
     throw new AppError('Admin email already exists', 409);
@@ -276,6 +331,7 @@ const createAdmin = async (currentAdmin, payload) => {
 };
 
 const updateAdmin = async (currentAdmin, adminId, payload) => {
+  await requireSuperAdmin(currentAdmin);
   const admin = await Admin.findById(adminId).select('+passwordHash');
   if (!admin) {
     throw new AppError('Admin not found', 404);
@@ -316,6 +372,7 @@ const updateAdmin = async (currentAdmin, adminId, payload) => {
 };
 
 const deleteAdmin = async (currentAdmin, adminId) => {
+  await requireSuperAdmin(currentAdmin);
   if (String(currentAdmin._id) === String(adminId)) {
     throw new AppError('لا يمكنك حذف حساب الأدمن الحالي', 400);
   }
@@ -651,12 +708,41 @@ const listActions = async ({ page = 1, limit = 20, actionType, adminId, fromDate
   };
 };
 
+
+const listDataRequests = async () => {
+  return DataRequest.find({}).populate('reviewedBy', 'name email').sort({ createdAt: -1 });
+};
+
+const updateDataRequestStatus = async (admin, requestId, status) => {
+  const request = await DataRequest.findById(requestId);
+  if (!request) {
+    throw new AppError('Data request not found', 404);
+  }
+
+  request.status = status;
+  request.reviewedBy = admin._id;
+  request.reviewedAt = new Date();
+  await request.save();
+
+  await logAdminAction({
+    adminId: admin._id,
+    actionType: 'edit',
+    targetTable: 'DataRequests',
+    targetId: request._id,
+    notes: `Updated data request status to ${status} for ${request.phone}`,
+  });
+
+  return request.populate('reviewedBy', 'name email');
+};
+
 module.exports = {
   login,
   requestPasswordReset,
   resetPassword,
   getDashboard,
   getNotificationSummary,
+  getNotificationCount,
+  markNotificationAsRead,
   getMe,
   updateMe,
   listAdmins,
@@ -671,4 +757,6 @@ module.exports = {
   listCards,
   toggleCardStatus,
   listActions,
+  listDataRequests,
+  updateDataRequestStatus,
 };
