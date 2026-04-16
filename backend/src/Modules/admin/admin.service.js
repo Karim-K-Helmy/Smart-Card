@@ -550,6 +550,50 @@ const toggleCardStatus = async (admin, cardId, isActive) => {
   return card;
 };
 
+const resolveActionTargetDisplayName = async (action) => {
+  if (action?.userId?.fullName) {
+    return action.userId.fullName;
+  }
+
+  const targetId = String(action?.targetId || '').trim();
+  if (!targetId) {
+    return '';
+  }
+
+  const tableName = String(action?.targetTable || '').toLowerCase();
+
+  try {
+    if (tableName === 'admins') {
+      const admin = await Admin.findById(targetId).select('name email');
+      return admin?.name || admin?.email || '';
+    }
+
+    if (tableName === 'users') {
+      const user = await User.findById(targetId).select('fullName email');
+      return user?.fullName || user?.email || '';
+    }
+
+    if (tableName === 'cards') {
+      const card = await Card.findById(targetId).populate('userId', 'fullName email');
+      return card?.userId?.fullName || card?.userId?.email || '';
+    }
+
+    if (tableName === 'cardorders') {
+      const order = await CardOrder.findById(targetId).populate('userId', 'fullName email');
+      return order?.userId?.fullName || order?.userId?.email || '';
+    }
+
+    if (tableName === 'paymentreceipts') {
+      const receipt = await PaymentReceipt.findById(targetId).populate('userId', 'fullName email');
+      return receipt?.userId?.fullName || receipt?.userId?.email || '';
+    }
+  } catch (error) {
+    return '';
+  }
+
+  return '';
+};
+
 const listActions = async ({ page = 1, limit = 20, actionType, adminId, fromDate, toDate, adminName }) => {
   const parsedPage = Number(page) || 1;
   const parsedLimit = Math.min(Number(limit) || 20, 100);
@@ -590,12 +634,20 @@ const listActions = async ({ page = 1, limit = 20, actionType, adminId, fromDate
     AdminAction.countDocuments(filter),
   ]);
 
+  const enrichedData = await Promise.all(
+    data.map(async (action) => {
+      const actionObject = action.toObject ? action.toObject() : { ...action };
+      actionObject.targetDisplayName = await resolveActionTargetDisplayName(actionObject);
+      return actionObject;
+    })
+  );
+
   return {
     page: parsedPage,
     limit: parsedLimit,
     total,
     pages: Math.ceil(total / parsedLimit),
-    data,
+    data: enrichedData,
   };
 };
 

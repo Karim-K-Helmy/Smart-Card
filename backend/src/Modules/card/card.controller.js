@@ -40,6 +40,21 @@ const getMyCard = async (req, res) => {
   res.status(200).json({ success: true, message: 'Card fetched successfully', data });
 };
 
+
+const getMyCardPreview = async (req, res) => {
+  const buffer = await cardService.getMyCardPreview(req.user);
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Content-Disposition', 'inline; filename="my-card-preview.png"');
+  res.status(200).send(buffer);
+};
+
+const getMyCardPdf = async (req, res) => {
+  const buffer = await cardService.getMyCardPdf(req.user);
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', 'attachment; filename="my-card.pdf"');
+  res.status(200).send(buffer);
+};
+
 const getCardByCode = async (req, res) => {
   const data = await cardService.getCardByCode(req.params.cardCode);
   res.status(200).json({ success: true, message: 'Card fetched successfully', data });
@@ -54,5 +69,7 @@ module.exports = {
   checkout,
   getMyOrders,
   getMyCard,
+  getMyCardPreview,
+  getMyCardPdf,
   getCardByCode,
 };

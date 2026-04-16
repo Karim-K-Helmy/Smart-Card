@@ -3,6 +3,8 @@ import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import Badge from '../../components/ui/Badge';
+import Modal from '../../components/ui/Modal';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useAuth } from '../../context/AuthContext';
 import {
   createAdminUser,
@@ -51,6 +53,23 @@ const mapMethodPayload = (method) => ({
   isActive: Boolean(method.isActive),
 });
 
+const initialAdminEditState = {
+  open: false,
+  saving: false,
+  error: '',
+  admin: null,
+  form: { name: '', email: '', role: 'admin', password: '' },
+};
+
+const initialConfirmState = {
+  open: false,
+  loading: false,
+  title: '',
+  description: '',
+  action: null,
+  confirmText: 'تأكيد',
+};
+
 export default function AdminSettingsPage() {
   const { authState, updateStoredUser } = useAuth();
   const [status, setStatus] = useState({ loading: true, error: '', success: '' });
@@ -58,6 +77,8 @@ export default function AdminSettingsPage() {
   const [methodsStatus, setMethodsStatus] = useState({ saving: false });
   const [plansStatus, setPlansStatus] = useState({ savingId: '' });
   const [adminsStatus, setAdminsStatus] = useState({ saving: false });
+  const [adminEditState, setAdminEditState] = useState(initialAdminEditState);
+  const [confirmState, setConfirmState] = useState(initialConfirmState);
 
   const [profile, setProfile] = useState({
     name: '',
@@ -101,7 +122,7 @@ export default function AdminSettingsPage() {
         email: adminData.primaryEmail || adminData.email || '',
         avatarUrl: adminData.avatarUrl || '',
         avatar: null,
-            currentPassword: '',
+        currentPassword: '',
         newPassword: '',
       }));
 
@@ -137,6 +158,7 @@ export default function AdminSettingsPage() {
   const pushSuccess = (message) => setStatus((prev) => ({ ...prev, success: message, error: '' }));
   const pushError = (error) => setStatus((prev) => ({ ...prev, error: extractApiError(error), success: '' }));
 
+  const closeConfirm = () => setConfirmState(initialConfirmState);
 
   const saveProfile = async (event) => {
     event.preventDefault();
@@ -154,7 +176,7 @@ export default function AdminSettingsPage() {
         ...prev,
         avatar: null,
         avatarUrl: adminData.avatarUrl || prev.avatarUrl,
-            currentPassword: '',
+        currentPassword: '',
         newPassword: '',
       }));
       updateStoredUser(adminData);
@@ -225,18 +247,25 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const removeMethod = async (method) => {
-    if (!window.confirm(`هل تريد حذف وسيلة الدفع ${method.methodName}؟`)) return;
-    setMethodsStatus({ saving: true });
-    try {
-      await deletePaymentMethod(method._id);
-      pushSuccess(`تم حذف ${method.methodName}.`);
-      await load();
-    } catch (error) {
-      pushError(error);
-    } finally {
-      setMethodsStatus({ saving: false });
-    }
+  const askRemoveMethod = (method) => {
+    setConfirmState({
+      open: true,
+      loading: false,
+      title: 'حذف وسيلة الدفع',
+      description: `سيتم حذف وسيلة الدفع ${method.methodName} من النظام نهائيًا.`,
+      confirmText: 'حذف الوسيلة',
+      action: async () => {
+        try {
+          await deletePaymentMethod(method._id);
+          pushSuccess(`تم حذف ${method.methodName}.`);
+          await load();
+          closeConfirm();
+        } catch (error) {
+          pushError(error);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
   };
 
   const createAdminHandler = async (event) => {
@@ -254,203 +283,265 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const editAdmin = async (admin) => {
-    const name = window.prompt('اسم الأدمن', admin.name || '');
-    if (name === null) return;
-    const email = admin.isPrimaryAdmin ? admin.email : window.prompt('البريد الإلكتروني', admin.email || '');
-    if (email === null) return;
-    const role = window.prompt('الدور', admin.role || 'admin');
-    if (role === null) return;
-    const password = window.prompt('كلمة مرور جديدة (اتركها فارغة إذا لا تريد التغيير)', '');
-    if (password === null) return;
+  const openEditAdminModal = (admin) => {
+    setAdminEditState({
+      open: true,
+      saving: false,
+      error: '',
+      admin,
+      form: {
+        name: admin.name || '',
+        email: admin.email || '',
+        role: admin.role || 'admin',
+        password: '',
+      },
+    });
+  };
 
-    setAdminsStatus({ saving: true });
+  const closeEditAdminModal = () => setAdminEditState(initialAdminEditState);
+
+  const submitEditAdmin = async (event) => {
+    event.preventDefault();
+    const { admin, form } = adminEditState;
+    if (!admin) return;
+
+    setAdminEditState((prev) => ({ ...prev, saving: true, error: '' }));
     try {
       await updateAdminUser(admin._id, {
-        name,
-        email,
-        role,
-        ...(password ? { password } : {}),
+        name: form.name,
+        email: admin.isPrimaryAdmin ? admin.email : form.email,
+        role: form.role,
+        ...(form.password ? { password: form.password } : {}),
       });
-      pushSuccess(`تم تعديل الأدمن ${name}.`);
+      pushSuccess(`تم تعديل الأدمن ${form.name}.`);
       await load();
+      closeEditAdminModal();
     } catch (error) {
-      pushError(error);
-    } finally {
-      setAdminsStatus({ saving: false });
+      setAdminEditState((prev) => ({ ...prev, saving: false, error: extractApiError(error) }));
     }
   };
 
-  const removeAdmin = async (admin) => {
-    if (!window.confirm(`هل تريد حذف الأدمن ${admin.name}؟`)) return;
-    setAdminsStatus({ saving: true });
-    try {
-      await deleteAdminUser(admin._id);
-      pushSuccess(`تم حذف الأدمن ${admin.name}.`);
-      await load();
-    } catch (error) {
-      pushError(error);
-    } finally {
-      setAdminsStatus({ saving: false });
-    }
+  const askRemoveAdmin = (admin) => {
+    setConfirmState({
+      open: true,
+      loading: false,
+      title: 'حذف حساب الأدمن',
+      description: `سيتم حذف حساب ${admin.name} نهائيًا من لوحة الإدارة.`,
+      confirmText: 'حذف الأدمن',
+      action: async () => {
+        try {
+          await deleteAdminUser(admin._id);
+          pushSuccess(`تم حذف الأدمن ${admin.name}.`);
+          await load();
+          closeConfirm();
+        } catch (error) {
+          pushError(error);
+          setConfirmState((prev) => ({ ...prev, loading: false }));
+        }
+      },
+    });
+  };
+
+  const runConfirmAction = async () => {
+    if (!confirmState.action) return;
+    setConfirmState((prev) => ({ ...prev, loading: true }));
+    await confirmState.action();
   };
 
   return (
-    <div className="stack-lg">
-      <PageHeader
-        title="إعدادات الأدمن"
-        text="إدارة ملف الأدمن، تسعير باقتي Star وPro، وسائل الدفع، وحسابات الأدمن من شاشة واحدة حقيقية."
-        actions={<Button variant="secondary" onClick={load} disabled={status.loading}>تحديث البيانات</Button>}
-      />
+    <>
+      <div className="stack-lg">
+        <PageHeader
+          title="إعدادات الأدمن"
+          text="إدارة ملف الأدمن، تسعير باقتي Star وPro، وسائل الدفع، وحسابات الأدمن من شاشة واحدة حقيقية."
+          actions={<Button variant="secondary" onClick={load} disabled={status.loading}>تحديث البيانات</Button>}
+        />
 
-      {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
-      {status.success ? <Card><p className="success-text">{status.success}</p></Card> : null}
+        {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
+        {status.success ? <Card><p className="success-text">{status.success}</p></Card> : null}
 
-      <div className="grid grid-2">
-        <Card title="ملف الأدمن الشخصي">
-          <div className="stack-md">
-            <div className="account-hero">
-              {avatarPreview ? (
-                <img className="profile-avatar large avatar-image" src={avatarPreview} alt={profile.name || authState.user?.fullName} />
-              ) : (
-                <div className="profile-avatar large">{getInitials(profile.name || authState.user?.fullName)}</div>
-              )}
-              <div>
-                <strong>{profile.name || 'Admin'}</strong>
-                <p className="muted">{profile.email || '-'}</p>
-              </div>
-            </div>
-
-            <form className="form-card" onSubmit={saveProfile}>
-              <div className="form-grid">
-                <label><span>اسم الأدمن</span><input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
-                <label><span>البريد الأساسي (ثابت من .env)</span><input type="email" value={profile.email} readOnly disabled /></label>
-              </div>
-              <label><span>صورة الأدمن</span><input type="file" accept="image/*" onChange={(e) => setProfile({ ...profile, avatar: e.target.files?.[0] || null })} /></label>
-              <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
-              <label><span>كلمة مرور جديدة</span><input type="password" value={profile.newPassword} onChange={(e) => setProfile({ ...profile, newPassword: e.target.value })} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
-              <div className="header-actions">
-                <Button type="submit" disabled={profileStatus.saving}>{profileStatus.saving ? 'جارٍ الحفظ...' : 'حفظ الملف الشخصي'}</Button>
-              </div>
-            </form>
-          </div>
-        </Card>
-
-        <Card title="تسعير الباقات الحقيقية">
-          <div className="stack-md">
-            <div className="notice-card notice-info">
-              <strong>مهم</strong>
-              <p>النظام الآن يحتوي على باقتين فقط: Star وPro، ويعتمد بالكامل على بيانات حقيقية من الخادم.</p>
-            </div>
-            {plans.map((plan) => (
-              <div key={plan._id} className="settings-block">
-                <div className="plan-settings-head">
-                  <div>
-                    <strong>{plan.planCode}</strong>
-                    <p className="muted">{plan.name}</p>
-                  </div>
-                  <Badge tone={plan.isActive ? 'success' : 'warning'}>{plan.isActive ? 'active' : 'inactive'}</Badge>
+        <div className="grid grid-2">
+          <Card title="ملف الأدمن الشخصي">
+            <div className="stack-md">
+              <div className="account-hero">
+                {avatarPreview ? (
+                  <img className="profile-avatar large avatar-image" src={avatarPreview} alt={profile.name || authState.user?.fullName} />
+                ) : (
+                  <div className="profile-avatar large">{getInitials(profile.name || authState.user?.fullName)}</div>
+                )}
+                <div>
+                  <strong>{profile.name || 'Admin'}</strong>
+                  <p className="muted">{profile.email || '-'}</p>
                 </div>
+              </div>
+
+              <form className="form-card" onSubmit={saveProfile}>
                 <div className="form-grid">
-                  <label><span>اسم الباقة</span><input value={plan.name} onChange={(e) => updatePlanField(plan._id, 'name', e.target.value)} /></label>
-                  <label><span>السعر</span><input type="number" min="0" value={plan.price} onChange={(e) => updatePlanField(plan._id, 'price', e.target.value)} /></label>
+                  <label><span>اسم الأدمن</span><input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
+                  <label><span>البريد الأساسي (ثابت من .env)</span><input type="email" value={profile.email} readOnly disabled /></label>
                 </div>
-                <div className="form-grid">
-                  <label><span>مدة الصلاحية بالأيام</span><input type="number" min="0" value={plan.durationDays} onChange={(e) => updatePlanField(plan._id, 'durationDays', e.target.value)} /></label>
-                  <label><span>الوصف</span><input value={plan.description} onChange={(e) => updatePlanField(plan._id, 'description', e.target.value)} /></label>
+                <label><span>صورة الأدمن</span><input type="file" accept="image/*" onChange={(e) => setProfile({ ...profile, avatar: e.target.files?.[0] || null })} /></label>
+                <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
+                <label><span>كلمة مرور جديدة</span><input type="password" value={profile.newPassword} onChange={(e) => setProfile({ ...profile, newPassword: e.target.value })} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
+                <div className="header-actions">
+                  <Button type="submit" disabled={profileStatus.saving}>{profileStatus.saving ? 'جارٍ الحفظ...' : 'حفظ الملف الشخصي'}</Button>
                 </div>
-                <label><span>المميزات (كل سطر ميزة)</span><textarea rows="4" value={plan.featuresText} onChange={(e) => updatePlanField(plan._id, 'featuresText', e.target.value)} /></label>
-                <div className="row-line compact-row-line">
-                  <strong>المعاينة الحالية</strong>
-                  <span>{Number(plan.price) > 0 ? formatMoney(plan.price) : 'بدون سعر ظاهر'} {Number(plan.durationDays) > 0 ? `/ ${plan.durationDays} يوم` : ''}</span>
-                </div>
-                <Button onClick={() => savePlan(plan)} disabled={plansStatus.savingId === plan._id}>
-                  {plansStatus.savingId === plan._id ? 'جارٍ حفظ الباقة...' : `حفظ ${plan.planCode}`}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+              </form>
+            </div>
+          </Card>
 
-      <div className="grid grid-2">
-        <Card title="إدارة وسائل الدفع">
-          <div className="stack-md">
-            <form className="form-card" onSubmit={createMethodHandler}>
-              <div className="form-grid">
-                <label><span>اسم الوسيلة</span><input required value={newMethod.methodName} onChange={(e) => setNewMethod({ ...newMethod, methodName: e.target.value })} /></label>
-                <label><span>رقم الهاتف</span><input value={newMethod.phoneNumber} onChange={(e) => setNewMethod({ ...newMethod, phoneNumber: e.target.value })} /></label>
+          <Card title="تسعير الباقات الحقيقية">
+            <div className="stack-md">
+              <div className="notice-card notice-info">
+                <strong>مهم</strong>
+                <p>النظام الآن يحتوي على باقتين فقط: Star وPro، ويعتمد بالكامل على بيانات حقيقية من الخادم.</p>
               </div>
-              <div className="form-grid">
-                <label><span>اسم المستلم</span><input value={newMethod.accountName} onChange={(e) => setNewMethod({ ...newMethod, accountName: e.target.value })} /></label>
-                <label className="checkbox-line admin-check"><input type="checkbox" checked={newMethod.isActive} onChange={(e) => setNewMethod({ ...newMethod, isActive: e.target.checked })} /> تفعيل الوسيلة</label>
-              </div>
-              <label><span>التعليمات</span><textarea rows="3" value={newMethod.instructions} onChange={(e) => setNewMethod({ ...newMethod, instructions: e.target.value })} /></label>
-              <Button type="submit" disabled={methodsStatus.saving}>{methodsStatus.saving ? 'جارٍ الإضافة...' : 'إضافة وسيلة دفع'}</Button>
-            </form>
-
-            <div className="table-like">
-              {methods.map((method) => (
-                <div key={method._id} className="settings-block">
+              {plans.map((plan) => (
+                <div key={plan._id} className="settings-block">
                   <div className="plan-settings-head">
-                    <strong>{method.methodName}</strong>
-                    <Badge tone={method.isActive ? 'success' : 'warning'}>{method.isActive ? 'active' : 'inactive'}</Badge>
+                    <div>
+                      <strong>{plan.planCode}</strong>
+                      <p className="muted">{plan.name}</p>
+                    </div>
+                    <Badge tone={plan.isActive ? 'success' : 'warning'}>{plan.isActive ? 'active' : 'inactive'}</Badge>
                   </div>
                   <div className="form-grid">
-                    <label><span>اسم الوسيلة</span><input value={method.methodName || ''} onChange={(e) => updateMethodField(method._id, 'methodName', e.target.value)} /></label>
-                    <label><span>رقم الهاتف</span><input value={method.phoneNumber || ''} onChange={(e) => updateMethodField(method._id, 'phoneNumber', e.target.value)} /></label>
+                    <label><span>اسم الباقة</span><input value={plan.name} onChange={(e) => updatePlanField(plan._id, 'name', e.target.value)} /></label>
+                    <label><span>السعر</span><input type="number" min="0" value={plan.price} onChange={(e) => updatePlanField(plan._id, 'price', e.target.value)} /></label>
                   </div>
                   <div className="form-grid">
-                    <label><span>اسم المستلم</span><input value={method.accountName || ''} onChange={(e) => updateMethodField(method._id, 'accountName', e.target.value)} /></label>
-                    <label className="checkbox-line admin-check"><input type="checkbox" checked={Boolean(method.isActive)} onChange={(e) => updateMethodField(method._id, 'isActive', e.target.checked)} /> تفعيل الوسيلة</label>
+                    <label><span>مدة الصلاحية بالأيام</span><input type="number" min="0" value={plan.durationDays} onChange={(e) => updatePlanField(plan._id, 'durationDays', e.target.value)} /></label>
+                    <label><span>الوصف</span><input value={plan.description} onChange={(e) => updatePlanField(plan._id, 'description', e.target.value)} /></label>
                   </div>
-                  <label><span>التعليمات</span><textarea rows="3" value={method.instructions || ''} onChange={(e) => updateMethodField(method._id, 'instructions', e.target.value)} /></label>
-                  <div className="row-actions">
-                    <Button onClick={() => saveMethod(method)} disabled={methodsStatus.saving}>حفظ التعديلات</Button>
-                    <Button variant="danger" onClick={() => removeMethod(method)} disabled={methodsStatus.saving}>حذف</Button>
+                  <label><span>المميزات (كل سطر ميزة)</span><textarea rows="4" value={plan.featuresText} onChange={(e) => updatePlanField(plan._id, 'featuresText', e.target.value)} /></label>
+                  <div className="row-line compact-row-line">
+                    <strong>المعاينة الحالية</strong>
+                    <span>{Number(plan.price) > 0 ? formatMoney(plan.price) : 'بدون سعر ظاهر'} {Number(plan.durationDays) > 0 ? `/ ${plan.durationDays} يوم` : ''}</span>
                   </div>
+                  <Button onClick={() => savePlan(plan)} disabled={plansStatus.savingId === plan._id}>
+                    {plansStatus.savingId === plan._id ? 'جارٍ حفظ الباقة...' : `حفظ ${plan.planCode}`}
+                  </Button>
                 </div>
               ))}
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
 
-        <Card title="إدارة حسابات الأدمن">
-          <div className="stack-md">
-            <form className="form-card" onSubmit={createAdminHandler}>
-              <div className="form-grid">
-                <label><span>الاسم</span><input required value={newAdmin.name} onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })} /></label>
-                <label><span>البريد</span><input required type="email" value={newAdmin.email} onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })} /></label>
-              </div>
-              <div className="form-grid">
-                <label><span>كلمة المرور</span><input required type="password" value={newAdmin.password} onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })} /></label>
-                <label><span>الدور</span><input value={newAdmin.role} onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })} /></label>
-              </div>
-              <Button type="submit" disabled={adminsStatus.saving}>{adminsStatus.saving ? 'جارٍ الإنشاء...' : 'إضافة أدمن جديد'}</Button>
-            </form>
-
-            <div className="table-like">
-              {admins.map((admin) => (
-                <div key={admin._id} className="row-line admin-row-card">
-                  <div>
-                    <strong>{admin.name}</strong>
-                    <p className="muted">{admin.email}</p>{admin.isPrimaryAdmin ? <Badge tone="info">Primary</Badge> : null}
-                  </div>
-                  <div className="row-actions align-end">
-                    <Badge tone="info">{admin.role}</Badge>
-                    <Button variant="ghost" onClick={() => editAdmin(admin)} disabled={adminsStatus.saving}>تعديل</Button>
-                    {admin._id !== authState.user?._id ? (
-                      <Button variant="danger" onClick={() => removeAdmin(admin)} disabled={adminsStatus.saving}>حذف</Button>
-                    ) : (
-                      <Button variant="secondary" disabled>الحساب الحالي</Button>
-                    )}
-                  </div>
+        <div className="grid grid-2">
+          <Card title="إدارة وسائل الدفع">
+            <div className="stack-md">
+              <form className="form-card" onSubmit={createMethodHandler}>
+                <div className="form-grid">
+                  <label><span>اسم الوسيلة</span><input required value={newMethod.methodName} onChange={(e) => setNewMethod({ ...newMethod, methodName: e.target.value })} /></label>
+                  <label><span>رقم الهاتف</span><input value={newMethod.phoneNumber} onChange={(e) => setNewMethod({ ...newMethod, phoneNumber: e.target.value })} /></label>
                 </div>
-              ))}
+                <div className="form-grid">
+                  <label><span>اسم المستلم</span><input value={newMethod.accountName} onChange={(e) => setNewMethod({ ...newMethod, accountName: e.target.value })} /></label>
+                  <label className="checkbox-line admin-check"><input type="checkbox" checked={newMethod.isActive} onChange={(e) => setNewMethod({ ...newMethod, isActive: e.target.checked })} /> تفعيل الوسيلة</label>
+                </div>
+                <label><span>التعليمات</span><textarea rows="3" value={newMethod.instructions} onChange={(e) => setNewMethod({ ...newMethod, instructions: e.target.value })} /></label>
+                <Button type="submit" disabled={methodsStatus.saving}>{methodsStatus.saving ? 'جارٍ الإضافة...' : 'إضافة وسيلة دفع'}</Button>
+              </form>
+
+              <div className="table-like">
+                {methods.map((method) => (
+                  <div key={method._id} className="settings-block">
+                    <div className="plan-settings-head">
+                      <strong>{method.methodName}</strong>
+                      <Badge tone={method.isActive ? 'success' : 'warning'}>{method.isActive ? 'active' : 'inactive'}</Badge>
+                    </div>
+                    <div className="form-grid">
+                      <label><span>اسم الوسيلة</span><input value={method.methodName || ''} onChange={(e) => updateMethodField(method._id, 'methodName', e.target.value)} /></label>
+                      <label><span>رقم الهاتف</span><input value={method.phoneNumber || ''} onChange={(e) => updateMethodField(method._id, 'phoneNumber', e.target.value)} /></label>
+                    </div>
+                    <div className="form-grid">
+                      <label><span>اسم المستلم</span><input value={method.accountName || ''} onChange={(e) => updateMethodField(method._id, 'accountName', e.target.value)} /></label>
+                      <label className="checkbox-line admin-check"><input type="checkbox" checked={Boolean(method.isActive)} onChange={(e) => updateMethodField(method._id, 'isActive', e.target.checked)} /> تفعيل الوسيلة</label>
+                    </div>
+                    <label><span>التعليمات</span><textarea rows="3" value={method.instructions || ''} onChange={(e) => updateMethodField(method._id, 'instructions', e.target.value)} /></label>
+                    <div className="row-actions">
+                      <Button onClick={() => saveMethod(method)} disabled={methodsStatus.saving}>حفظ التعديلات</Button>
+                      <Button variant="danger" onClick={() => askRemoveMethod(method)} disabled={methodsStatus.saving}>حذف</Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+
+          <Card title="إدارة حسابات الأدمن">
+            <div className="stack-md">
+              <form className="form-card" onSubmit={createAdminHandler}>
+                <div className="form-grid">
+                  <label><span>الاسم</span><input required value={newAdmin.name} onChange={(e) => setNewAdmin({ ...newAdmin, name: e.target.value })} /></label>
+                  <label><span>البريد</span><input required type="email" value={newAdmin.email} onChange={(e) => setNewAdmin({ ...newAdmin, email: e.target.value })} /></label>
+                </div>
+                <div className="form-grid">
+                  <label><span>كلمة المرور</span><input required type="password" value={newAdmin.password} onChange={(e) => setNewAdmin({ ...newAdmin, password: e.target.value })} /></label>
+                  <label><span>الدور</span><input value={newAdmin.role} onChange={(e) => setNewAdmin({ ...newAdmin, role: e.target.value })} /></label>
+                </div>
+                <Button type="submit" disabled={adminsStatus.saving}>{adminsStatus.saving ? 'جارٍ الإنشاء...' : 'إضافة أدمن جديد'}</Button>
+              </form>
+
+              <div className="table-like">
+                {admins.map((admin) => (
+                  <div key={admin._id} className="row-line admin-row-card">
+                    <div>
+                      <strong>{admin.name}</strong>
+                      <p className="muted">{admin.email}</p>{admin.isPrimaryAdmin ? <Badge tone="info">Primary</Badge> : null}
+                    </div>
+                    <div className="row-actions align-end">
+                      <Badge tone="info">{admin.role}</Badge>
+                      <Button variant="ghost" onClick={() => openEditAdminModal(admin)} disabled={adminsStatus.saving}>تعديل</Button>
+                      {admin._id !== authState.user?._id ? (
+                        <Button variant="danger" onClick={() => askRemoveAdmin(admin)} disabled={adminsStatus.saving}>حذف</Button>
+                      ) : (
+                        <Button variant="secondary" disabled>الحساب الحالي</Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </div>
       </div>
-    </div>
+
+      <Modal
+        open={adminEditState.open}
+        onClose={closeEditAdminModal}
+        size="lg"
+        title={`تعديل حساب ${adminEditState.admin?.name || ''}`}
+        description="نافذة احترافية لتعديل بيانات الأدمن بدلًا من استخدام prompt."
+        footer={(
+          <>
+            <Button variant="ghost" onClick={closeEditAdminModal}>إلغاء</Button>
+            <Button onClick={submitEditAdmin} disabled={adminEditState.saving}>{adminEditState.saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</Button>
+          </>
+        )}
+      >
+        <form className="stack-md" onSubmit={submitEditAdmin}>
+          <div className="form-grid">
+            <label><span>اسم الأدمن</span><input value={adminEditState.form.name} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, name: e.target.value } }))} /></label>
+            <label><span>البريد الإلكتروني</span><input type="email" value={adminEditState.admin?.isPrimaryAdmin ? adminEditState.admin.email || '' : adminEditState.form.email} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, email: e.target.value } }))} disabled={adminEditState.admin?.isPrimaryAdmin} /></label>
+          </div>
+          <div className="form-grid">
+            <label><span>الدور</span><input value={adminEditState.form.role} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, role: e.target.value } }))} /></label>
+            <label><span>كلمة مرور جديدة</span><input type="password" value={adminEditState.form.password} onChange={(e) => setAdminEditState((prev) => ({ ...prev, form: { ...prev.form, password: e.target.value } }))} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
+          </div>
+          {adminEditState.error ? <p className="error-text">{adminEditState.error}</p> : null}
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={confirmState.open}
+        onClose={closeConfirm}
+        onConfirm={runConfirmAction}
+        title={confirmState.title}
+        description={confirmState.description}
+        loading={confirmState.loading}
+        confirmText={confirmState.confirmText}
+      />
+    </>
   );
 }

@@ -8,3 +8,6 @@ export const checkoutCard = (payload) => http.post('/cards/checkout', payload, {
 });
 export const getMyOrders = () => http.get('/cards/orders/me');
 export const getMyCard = () => http.get('/cards/my-card');
+
+export const getMyCardPreview = () => http.get('/cards/my-card/preview', { responseType: 'blob' });
+export const downloadMyCardPdf = () => http.get('/cards/my-card/pdf', { responseType: 'blob' });

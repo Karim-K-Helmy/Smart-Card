@@ -6,6 +6,8 @@ const PaymentMethod = require('../../../DB/Models/paymentMethod.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
 const { AppError } = require('../../utils/errorhandling');
 const { optimizeAndUpload } = require('../../services/MulterLocally');
+const { buildMergedBackImage, buildCardPdf } = require('../../services/card-media.service');
+const { buildProfileLink } = require('../../services/qr.service');
 
 const normalizeFeatures = (features) => {
   if (Array.isArray(features)) {
@@ -153,6 +155,52 @@ const getMyCard = async (user) =>
     populate: { path: 'cardPlanId' },
   });
 
+
+const resolveCardTargetUrl = (card, user) => {
+  if (card?.shortLink) {
+    return card.shortLink;
+  }
+
+  if (card?.qrCodeValue && /^https?:\/\//i.test(card.qrCodeValue)) {
+    return String(card.qrCodeValue).split('?')[0];
+  }
+
+  if (user?.profileSlug) {
+    return buildProfileLink(user.profileSlug);
+  }
+
+  throw new AppError('تعذر إنشاء رابط الصفحة العامة لهذه البطاقة', 400);
+};
+
+const getRenderableCard = async (user) => {
+  const card = await getMyCard(user);
+
+  if (!card) {
+    throw new AppError('لم يتم العثور على بطاقة مفعلة لهذا المستخدم', 404);
+  }
+
+  const planCode = card?.cardOrderId?.cardPlanId?.planCode;
+  if (!planCode) {
+    throw new AppError('تعذر تحديد نوع الباقة الخاصة بالبطاقة', 400);
+  }
+
+  return {
+    card,
+    planCode,
+    qrValue: resolveCardTargetUrl(card, user),
+  };
+};
+
+const getMyCardPreview = async (user) => {
+  const { qrValue } = await getRenderableCard(user);
+  return buildMergedBackImage({ qrValue });
+};
+
+const getMyCardPdf = async (user) => {
+  const { planCode, qrValue } = await getRenderableCard(user);
+  return buildCardPdf({ planCode, qrValue });
+};
+
 const getCardByCode = async (cardCode) => {
   const card = await Card.findOne({ cardCode }).populate('userId').populate({
     path: 'cardOrderId',
@@ -179,5 +227,7 @@ module.exports = {
   checkout,
   getMyOrders,
   getMyCard,
+  getMyCardPreview,
+  getMyCardPdf,
   getCardByCode,
 };

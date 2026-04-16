@@ -16,6 +16,8 @@ router.post('/orders', auth, validate(createOrderSchema), asyncHandler(controlle
 router.post('/checkout', auth, uploadSingle('receiptImage'), validate(checkoutSchema), asyncHandler(controller.checkout));
 router.get('/orders/me', auth, asyncHandler(controller.getMyOrders));
 router.get('/my-card', auth, asyncHandler(controller.getMyCard));
+router.get('/my-card/preview', auth, asyncHandler(controller.getMyCardPreview));
+router.get('/my-card/pdf', auth, asyncHandler(controller.getMyCardPdf));
 router.get('/code/:cardCode', validate(cardCodeSchema), asyncHandler(controller.getCardByCode));
 
 module.exports = router;

@@ -7,6 +7,14 @@ import { extractApiError, formatDate } from '../../utils/api';
 
 const actionOptions = ['', 'create', 'freeze', 'unfreeze', 'edit', 'delete', 'approve_payment', 'reject_payment'];
 
+const tableLabels = {
+  Users: 'مستخدم',
+  Admins: 'أدمن',
+  Cards: 'بطاقة',
+  CardOrders: 'طلب',
+  PaymentReceipts: 'إيصال دفع',
+};
+
 export default function AdminActionsPage() {
   const [actions, setActions] = useState([]);
   const [admins, setAdmins] = useState([]);
@@ -39,7 +47,7 @@ export default function AdminActionsPage() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="سجل عمليات الأدمن" text="فلترة النتائج حسب نوع العملية والتاريخ واسم المدير الذي قام بها." />
+      <PageHeader title="سجل عمليات الأدمن" text="فلترة النتائج حسب نوع العملية والتاريخ واسم المدير الذي قام بها، مع إظهار اسم الهدف بدل الـ ID الطويل." />
       {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
 
       <Card>
@@ -81,12 +89,18 @@ export default function AdminActionsPage() {
 
       <Card>
         <div className="table-like">
-          <div className="table-row table-head"><span>الأدمن</span><span>الإجراء</span><span>الهدف</span><span>الملاحظات</span><span>التاريخ</span></div>
+          <div className="table-row table-head" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', alignItems: 'center', textAlign: 'center' }}>
+            <span>الأدمن</span><span>الإجراء</span><span>الهدف</span><span>الملاحظات</span><span>التاريخ</span>
+          </div>
           {actions.map((action) => (
-            <div key={action._id} className="table-row">
+            <div key={action._id} className="table-row admin-actions-row" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', alignItems: 'center', textAlign: 'center' }}>
               <span>{action.adminId?.name || '-'}</span>
               <span>{action.actionType}</span>
-              <span>{action.targetTable} / {action.targetId}</span>
+              <span>
+                <strong>{action.targetDisplayName || '—'}</strong>
+                <br />
+                <small>{tableLabels[action.targetTable] || action.targetTable || 'غير محدد'}</small>
+              </span>
               <span>{action.notes || '-'}</span>
               <span>{formatDate(action.createdAt)}</span>
             </div>

@@ -5,11 +5,11 @@ const { uploadBufferAsImage } = require('./MulterLocally');
 const generateCardCode = () => crypto.randomBytes(6).toString('hex').toUpperCase();
 
 const buildProfileLink = (slug) => {
-  const base = process.env.PUBLIC_PROFILE_BASE_URL || 'http://localhost:3000/profile';
+  const base = process.env.PUBLIC_PROFILE_BASE_URL || 'http://localhost:5173/profile';
   return `${base}/${slug}`;
 };
 
-const buildQrPayload = ({ slug, cardCode }) => `${buildProfileLink(slug)}?card=${cardCode}`;
+const buildQrPayload = ({ slug }) => buildProfileLink(slug);
 
 const generateQrAssets = async ({ slug, cardCode }) => {
   const qrCodeValue = buildQrPayload({ slug, cardCode });

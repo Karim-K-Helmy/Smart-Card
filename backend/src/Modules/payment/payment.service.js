@@ -126,7 +126,6 @@ const createCardForOrder = async (order, user) => {
   if (existingCard) {
     existingCard.isActive = true;
     existingCard.activatedAt = new Date();
-    existingCard.expiresAt = new Date(Date.now() + Number(plan.durationDays || 30) * 24 * 60 * 60 * 1000);
     await existingCard.save();
     return existingCard;
   }
@@ -143,7 +142,6 @@ const createCardForOrder = async (order, user) => {
     shortLink: qrAssets.shortLink,
     isActive: true,
     activatedAt: new Date(),
-    expiresAt: new Date(Date.now() + Number(plan.durationDays || 30) * 24 * 60 * 60 * 1000),
   });
 };
 
