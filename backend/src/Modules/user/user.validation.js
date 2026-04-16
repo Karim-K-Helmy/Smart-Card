@@ -51,6 +51,7 @@ const businessLocationSchema = Joi.object({
   whatsappNumber: Joi.string().allow('', null),
   facebookLink: Joi.string().allow('', null),
   email: Joi.string().allow('', null),
+  existingImages: Joi.array().items(Joi.string().allow('', null)).max(5),
   sortOrder: Joi.number(),
 });
 
@@ -66,6 +67,9 @@ const updateProfileSchema = Joi.object({
     phone: Joi.string().min(6).max(20),
     whatsappNumber: Joi.string().allow('', null),
     bio: Joi.string().max(2000).allow('', null),
+    jobTitle: Joi.string().allow('', null),
+    aboutText: Joi.string().allow('', null),
+    birthDate: Joi.date().allow('', null),
     currentPlan: Joi.string().valid('NONE', 'STAR', 'PRO'),
     personalProfile: Joi.object({
       jobTitle: Joi.string().allow('', null),
@@ -84,10 +88,19 @@ const updateProfileSchema = Joi.object({
       whatsappNumber: Joi.string().allow('', null),
       facebookLink: Joi.string().allow('', null),
       email: Joi.string().allow('', null),
-      businessLocations: Joi.array().items(businessLocationSchema),
+      businessLocations: Joi.alternatives().try(
+        Joi.array().max(2).items(businessLocationSchema),
+        Joi.string().allow('', null)
+      ),
     }),
-    businessLocations: Joi.array().items(businessLocationSchema),
-    socialLinks: Joi.array().items(socialLinkSchema),
+    businessLocations: Joi.alternatives().try(
+      Joi.array().max(2).items(businessLocationSchema),
+      Joi.string().allow('', null)
+    ),
+    socialLinks: Joi.alternatives().try(
+      Joi.array().items(socialLinkSchema),
+      Joi.string().allow('', null)
+    ),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -113,6 +126,7 @@ const createProductSchema = Joi.object({
     ctaUrl: Joi.string().allow('', null),
     sortOrder: Joi.number().allow('', null),
     categoryId: mongoId.allow('', null),
+    isVisible: Joi.boolean(),
   }).required(),
   params: Joi.object({}),
   query: Joi.object({}),
@@ -129,6 +143,7 @@ const updateProductSchema = Joi.object({
     ctaUrl: Joi.string().allow('', null),
     sortOrder: Joi.number().allow('', null),
     categoryId: mongoId.allow('', null),
+    isVisible: Joi.boolean(),
   }).required(),
   params: Joi.object({
     productId: mongoId.required(),

@@ -150,7 +150,7 @@ export default function ContactPage() {
               <span className="contact-item-icon"><i className="fa-brands fa-facebook-f"></i></span>
               <span>
                 <span className="contact-item-label">فيسبوك</span>
-                <span className="contact-item-value">LineStart</span>
+                <span className="contact-item-value">linestart</span>
               </span>
             </a>
           </div>

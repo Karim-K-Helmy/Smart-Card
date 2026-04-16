@@ -143,6 +143,10 @@ const businessProfileSchema = new mongoose.Schema(
     businessLocations: {
       type: [businessLocationSchema],
       default: [],
+      validate: {
+        validator: (value) => Array.isArray(value) && value.length <= 2,
+        message: 'You can add up to 2 business locations only',
+      },
     },
   },
   { timestamps: { createdAt: true, updatedAt: false } }

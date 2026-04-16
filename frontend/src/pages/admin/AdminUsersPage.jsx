@@ -161,7 +161,7 @@ export default function AdminUsersPage() {
           text="بحث، فلترة، تعديل بيانات المستخدم من نافذة احترافية كبيرة، مع التحكم في التجميد والحذف من لوحة الأدمن."
           actions={<Button variant="secondary" onClick={load}>تحديث</Button>}
         />
-        <Card icon="fa-users">
+        <Card icon="fa-users" className="admin-users-filters-card">
           <div className="form-grid">
             <label>
               <span>بحث</span>
@@ -187,7 +187,7 @@ export default function AdminUsersPage() {
               </select>
             </label>
           </div>
-          <div className="header-actions">
+          <div className="header-actions admin-users-filters-actions">
             <Button onClick={load}>
               <i className="fa-solid fa-check"></i>
               تطبيق الفلاتر
@@ -196,7 +196,7 @@ export default function AdminUsersPage() {
         </Card>
         {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
         <Card icon="fa-users">
-          <div className="table-like">
+          <div className="table-like admin-users-table">
             <div className="table-row table-head admin-users-row">
               <span>الاسم</span><span>البريد الإلكتروني</span><span>الهاتف</span><span>الباقة</span><span>الحالة</span><span>الإجراء</span>
             </div>
@@ -207,7 +207,7 @@ export default function AdminUsersPage() {
                 <span>{user.phone}</span>
                 <span>{translateDisplayValue(user.currentPlan || 'NONE')}</span>
                 <span><Badge tone={user.status}>{user.status}</Badge></span>
-                <span className="row-actions">
+                <span className="row-actions admin-users-actions">
                   <Button variant="ghost" onClick={() => openEditModal(user)}>تعديل</Button>
                   {user.status !== 'frozen'
                     ? <Button variant="secondary" onClick={() => requestStatusChange(user, 'frozen')}>تجميد</Button>

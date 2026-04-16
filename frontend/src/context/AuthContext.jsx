@@ -16,8 +16,8 @@ function normalizeUser(user) {
 
   return {
     _id: user._id || user.id || '',
-    fullName: user.fullName || user.name || 'LineStart User',
-    name: user.name || user.fullName || 'LineStart User',
+    fullName: user.fullName || user.name || 'linestart user',
+    name: user.name || user.fullName || 'linestart user',
     email: user.primaryEmail || user.email || '',
     currentPlan,
     accountType: currentPlan,

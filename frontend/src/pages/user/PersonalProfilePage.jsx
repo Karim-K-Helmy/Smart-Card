@@ -3,7 +3,7 @@ import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
 import { getMyProfile, updateProfile } from '../../services/api/users';
-import { extractApiError } from '../../utils/api';
+import { extractApiError, toFormData } from '../../utils/api';
 import { translateDisplayValue } from '../../utils/display';
 
 export default function PersonalProfilePage({ embedded = false }) {
@@ -34,7 +34,7 @@ export default function PersonalProfilePage({ embedded = false }) {
     event.preventDefault();
     setStatus((prev) => ({ ...prev, saving: true, error: '', success: '' }));
     try {
-      await updateProfile(form);
+      await updateProfile(toFormData(form));
       setStatus((prev) => ({ ...prev, success: 'تم حفظ البيانات الشخصية بنجاح.' }));
     } catch (error) {
       setStatus((prev) => ({ ...prev, error: extractApiError(error) }));

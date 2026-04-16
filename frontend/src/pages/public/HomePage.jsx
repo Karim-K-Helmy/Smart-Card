@@ -121,7 +121,7 @@ export default function HomePage() {
           <div className="hero-text-content">
             <span className="eyebrow hero-badge">
               <i className="fa-solid fa-star"></i>
-              LineStart
+              linestart
             </span>
 
             <h1>بطاقة ذكية أنيقة تعكس هويتك المهنية من أول لمسة</h1>

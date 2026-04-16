@@ -6,14 +6,14 @@ export default function AboutPage() {
     <section className="section muted-section">
       <div className="container narrow stack-lg">
         <SectionTitle
-          eyebrow="LineStart"
+          eyebrow="linestart"
           title="من نحن"
           text="حل رقمي حديث يساعد الأفراد والشركات على تقديم هويتهم وخدماتهم بطريقة أكثر أناقة واحترافية."
         />
 
         <Card className="about-full-card" icon="fa-info">
           <p>
-            LineStart منصة بطاقات ذكية صُممت لتسهّل مشاركة البيانات الشخصية والتجارية بطريقة سريعة، واضحة، ومتوافقة مع أسلوب العمل الحديث.
+            linestart منصة بطاقات ذكية صُممت لتسهّل مشاركة البيانات الشخصية والتجارية بطريقة سريعة، واضحة، ومتوافقة مع أسلوب العمل الحديث.
             نركّز على الدمج بين المظهر الاحترافي، سهولة الاستخدام، وسرعة الوصول إلى المعلومات، حتى تصبح البطاقة الرقمية أداة فعّالة في تقديمك المهني.
           </p>
         </Card>

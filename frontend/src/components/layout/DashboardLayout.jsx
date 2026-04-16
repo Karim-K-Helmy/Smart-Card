@@ -45,7 +45,7 @@ export default function DashboardLayout({ area }) {
   const [counts, setCounts] = useState({});
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navItems = useMemo(() => (area === 'admin' ? adminNav : userNav), [area]);
-  const userName = authState.user?.fullName || authState.user?.name || 'LineStart';
+  const userName = authState.user?.fullName || authState.user?.name || 'linestart';
   const userEmail = authState.user?.email || '';
 
   const refreshBadges = useCallback(async () => {
@@ -113,7 +113,7 @@ export default function DashboardLayout({ area }) {
         <div className="sidebar-brand">
           <strong>
             <i className="fa-solid fa-id-card"></i>
-            <span>LineStart</span>
+            <span>linestart</span>
           </strong>
           <small>{area === 'admin' ? 'لوحة إدارة المنصة' : 'لوحة إدارة بطاقتك الذكية'}</small>
         </div>

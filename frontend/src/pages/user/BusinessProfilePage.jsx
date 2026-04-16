@@ -6,6 +6,7 @@ import { getMyProfile, updateProfile } from '../../services/api/users';
 import { extractApiError, toFormData } from '../../utils/api';
 
 const MAX_IMAGES_PER_LOCATION = 5;
+const MAX_LOCATIONS = 2;
 const emptyLocation = {
   name: '',
   description: '',
@@ -64,7 +65,7 @@ export default function BusinessProfilePage({ embedded = false }) {
               images: business.logo ? [business.logo] : [],
             })];
 
-        setLocations(preparedLocations);
+        setLocations(preparedLocations.slice(0, MAX_LOCATIONS));
         setStatus((prev) => ({ ...prev, currentPlan: profileRes.data.data.user?.currentPlan || 'NONE' }));
       } catch (error) {
         setStatus((prev) => ({ ...prev, error: extractApiError(error) }));
@@ -82,6 +83,11 @@ export default function BusinessProfilePage({ embedded = false }) {
   };
 
   const addLocation = () => {
+    if (locations.length >= MAX_LOCATIONS) {
+      setStatus((prev) => ({ ...prev, error: `يمكنك إضافة ${MAX_LOCATIONS} أماكن تجارية كحد أقصى.` }));
+      return;
+    }
+    setStatus((prev) => ({ ...prev, error: '', success: '' }));
     setLocations((prev) => [...prev, normalizeLocation()]);
   };
 
@@ -93,8 +99,11 @@ export default function BusinessProfilePage({ embedded = false }) {
     const files = Array.from(filesList || []);
     setLocations((prev) => prev.map((item, itemIndex) => {
       if (itemIndex !== index) return item;
-      const availableSlots = MAX_IMAGES_PER_LOCATION - (item.existingImages?.length || 0);
-      return { ...item, newImages: files.slice(0, Math.max(availableSlots, 0)) };
+      const existingCount = item.existingImages?.length || 0;
+      const currentNewImages = item.newImages || [];
+      const availableSlots = Math.max(MAX_IMAGES_PER_LOCATION - existingCount - currentNewImages.length, 0);
+      if (!availableSlots) return item;
+      return { ...item, newImages: [...currentNewImages, ...files.slice(0, availableSlots)] };
     }));
   };
 
@@ -117,6 +126,7 @@ export default function BusinessProfilePage({ embedded = false }) {
     setStatus((prev) => ({ ...prev, saving: true, error: '', success: '' }));
     try {
       const cleanedLocations = locations
+        .slice(0, MAX_LOCATIONS)
         .map((item, index) => ({
           name: item.name,
           description: item.description,
@@ -132,15 +142,19 @@ export default function BusinessProfilePage({ embedded = false }) {
         .filter((item) => item.name || item.description || item.address || item.phone || item.whatsappNumber || item.facebookLink || item.email || item.googleMapsLink || item.existingImages.length);
 
       const payload = toFormData({ businessLocations: cleanedLocations });
-      locations.forEach((location, index) => {
+      locations.slice(0, MAX_LOCATIONS).forEach((location, index) => {
         (location.newImages || []).slice(0, MAX_IMAGES_PER_LOCATION).forEach((file) => {
           payload.append(`businessLocationImages_${index}`, file);
         });
       });
 
-      await updateProfile(payload);
+      const { data } = await updateProfile(payload);
+      const updatedBusiness = data.data.businessProfile || {};
+      const preparedLocations = Array.isArray(updatedBusiness.businessLocations) && updatedBusiness.businessLocations.length
+        ? updatedBusiness.businessLocations.map(normalizeLocation)
+        : [normalizeLocation()];
+      setLocations(preparedLocations.slice(0, MAX_LOCATIONS));
       setStatus((prev) => ({ ...prev, success: 'تم حفظ بيانات الأماكن التجارية بنجاح.' }));
-      setLocations((prev) => prev.map((item) => ({ ...item, newImages: [] })));
     } catch (error) {
       setStatus((prev) => ({ ...prev, error: extractApiError(error) }));
     } finally {
@@ -161,16 +175,16 @@ export default function BusinessProfilePage({ embedded = false }) {
       {!embedded ? (
         <PageHeader
           title="الأماكن التجارية"
-          text="أضف أكثر من مكان مثل المنتجات، وكل مكان يمكن أن يحتوي على حتى 5 صور وبيانات التواصل الخاصة به."
-          actions={<Button variant="secondary" onClick={addLocation}>إضافة مكان</Button>}
+          text={`يمكنك إضافة حتى ${MAX_LOCATIONS} أماكن تجارية، وكل مكان يمكن أن يحتوي على حتى ${MAX_IMAGES_PER_LOCATION} صور مع إمكانية رفع عدة صور دفعة واحدة.`}
+          actions={<Button variant="secondary" onClick={addLocation} disabled={locations.length >= MAX_LOCATIONS}>إضافة مكان</Button>}
         />
       ) : null}
       <Card icon="fa-building">
         <div className="brand-pill">{status.currentPlan === 'PRO' ? 'باقة Pro مفعّلة' : 'جاهز للترقية إلى Pro'}</div>
-        {embedded ? <div className="embedded-section-action"><Button variant="secondary" onClick={addLocation}>إضافة مكان</Button></div> : null}
+        {embedded ? <div className="embedded-section-action"><Button variant="secondary" onClick={addLocation} disabled={locations.length >= MAX_LOCATIONS}>إضافة مكان</Button></div> : null}
         <form className="form-card" onSubmit={handleSubmit}>
           <div className="stack-sm" style={{ marginBottom: 20 }}>
-            <strong>عدد الأماكن المضافة:</strong> {filledLocationsCount || locations.length}
+            <strong>عدد الأماكن المضافة:</strong> {filledLocationsCount || locations.length} / {MAX_LOCATIONS}
           </div>
 
           {locations.map((location, index) => {
@@ -203,7 +217,7 @@ export default function BusinessProfilePage({ embedded = false }) {
                   <label><span>البريد الإلكتروني للمكان</span><input value={location.email} onChange={(e) => updateLocation(index, 'email', e.target.value)} placeholder="branch@example.com" /></label>
                   <label>
                     <span>صور المكان التجاري ({totalImages}/{MAX_IMAGES_PER_LOCATION})</span>
-                    <input type="file" accept="image/*" multiple onChange={(e) => handleImageChange(index, e.target.files)} />
+                    <input type="file" accept="image/*" multiple onChange={(e) => { handleImageChange(index, e.target.files); e.target.value = ""; }} />
                   </label>
                 </div>
 

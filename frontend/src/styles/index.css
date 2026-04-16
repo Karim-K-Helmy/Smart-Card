@@ -1799,8 +1799,44 @@ main,
   grid-template-columns: 1fr 0.8fr 1.2fr 1.8fr 1fr;
 }
 
+.admin-users-filters-card .form-grid {
+  align-items: end;
+}
+
+.admin-users-filters-actions {
+  margin-top: 18px;
+  margin-bottom: 14px;
+}
+
+.admin-users-table {
+  display: grid;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+
 .admin-users-row {
-  grid-template-columns: 1.2fr 1.3fr 0.9fr 0.8fr 0.8fr 1.4fr;
+  grid-template-columns: minmax(180px, 1.15fr) minmax(240px, 1.45fr) minmax(130px, 0.9fr) minmax(90px, 0.7fr) minmax(110px, 0.75fr) minmax(250px, 1.25fr);
+  column-gap: 20px;
+  min-width: 1020px;
+}
+
+.admin-users-row > span {
+  min-width: 0;
+}
+
+.admin-users-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.admin-users-actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .admin-modal-overlay {
@@ -1997,9 +2033,12 @@ main,
     grid-template-columns: 1fr;
   }
 
-  .admin-actions-row,
-  .admin-users-row {
+  .admin-actions-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-users-row {
+    grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.2fr) minmax(120px, 0.85fr) minmax(90px, 0.65fr) minmax(100px, 0.7fr) minmax(220px, 1.1fr);
   }
 }
 
@@ -2021,9 +2060,17 @@ main,
   }
 
   .admin-modal-grid,
-  .admin-actions-row,
-  .admin-users-row {
+  .admin-actions-row {
     grid-template-columns: 1fr;
+  }
+
+  .admin-users-row {
+    grid-template-columns: minmax(170px, 1fr) minmax(220px, 1.2fr) minmax(120px, 0.85fr) minmax(90px, 0.65fr) minmax(100px, 0.7fr) minmax(220px, 1.1fr);
+    min-width: 980px;
+  }
+
+  .admin-users-actions {
+    flex-wrap: nowrap;
   }
 
   .admin-modal-actions {
@@ -2338,6 +2385,8 @@ main,
   line-height: 1.9;
   color: var(--muted);
 }
+
+
 
 .profile-contact-pills {
   padding: 0 24px 24px;

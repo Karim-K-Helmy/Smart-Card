@@ -13,6 +13,9 @@ const { AppError } = require('../../utils/errorhandling');
 const { signUserToken, signPasswordResetToken, verifyPasswordResetToken } = require('../../services/token.service');
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
 
+const MAX_BUSINESS_LOCATIONS = 2;
+const MAX_PRODUCTS = 10;
+
 const sanitizeUser = (user) => {
   const object = user.toObject ? user.toObject() : { ...user };
   delete object.passwordHash;
@@ -557,13 +560,22 @@ const updateProfile = async (currentUser, payload, files) => {
 
   const personalProfile = (await PersonalProfile.findOne({ userId: user._id })) || new PersonalProfile({ userId: user._id });
   if (payload.jobTitle !== undefined) personalProfile.jobTitle = payload.jobTitle || '';
-  if (payload.aboutText !== undefined) personalProfile.aboutText = payload.aboutText || '';
+  if (payload.aboutText !== undefined) {
+    personalProfile.aboutText = payload.aboutText || '';
+    user.bio = payload.aboutText || '';
+    await user.save();
+  } else if (payload.bio !== undefined && !personalProfile.aboutText) {
+    personalProfile.aboutText = payload.bio || '';
+  }
   if (payload.birthDate !== undefined) personalProfile.birthDate = payload.birthDate || null;
   await personalProfile.save();
 
   const businessProfile = (await BusinessProfile.findOne({ userId: user._id })) || new BusinessProfile({ userId: user._id });
 
   if (businessLocations !== undefined) {
+    if (businessLocations.length > MAX_BUSINESS_LOCATIONS) {
+      throw new AppError(`You can add up to ${MAX_BUSINESS_LOCATIONS} business locations only`, 400);
+    }
     const previousLocations = normalizeStoredBusinessLocations(businessProfile.toObject ? businessProfile.toObject() : businessProfile);
     const previousImages = previousLocations.flatMap((location) => location.images || []);
     const preparedLocations = [];
@@ -654,6 +666,11 @@ const createProduct = async (currentUser, payload, files) => {
   ensureProUser(user);
   if (payload.categoryId) {
     await getCategoryIfExists(payload.categoryId);
+  }
+
+  const productCount = await Product.countDocuments({ userId: user._id });
+  if (productCount >= MAX_PRODUCTS) {
+    throw new AppError(`You can add up to ${MAX_PRODUCTS} products only`, 400);
   }
 
   const product = new Product({

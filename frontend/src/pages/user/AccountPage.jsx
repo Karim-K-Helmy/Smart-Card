@@ -13,7 +13,6 @@ export default function AccountPage() {
     email: '',
     phone: '',
     whatsappNumber: '',
-    bio: '',
     profileImage: null,
     currentPassword: '',
     newPassword: '',
@@ -37,7 +36,6 @@ export default function AccountPage() {
           email: user.email || '',
           phone: user.phone || '',
           whatsappNumber: user.whatsappNumber || '',
-          bio: user.bio || '',
         }));
       } catch (error) {
         setStatus((prev) => ({ ...prev, error: extractApiError(error) }));
@@ -57,7 +55,6 @@ export default function AccountPage() {
         email: form.email,
         phone: form.phone,
         whatsappNumber: form.whatsappNumber,
-        bio: form.bio,
         profileImage: form.profileImage,
       });
       const { data } = await updateProfile(payload);
@@ -100,7 +97,6 @@ export default function AccountPage() {
             <label><span>واتساب</span><input value={form.whatsappNumber} onChange={(e) => setForm({ ...form, whatsappNumber: e.target.value })} /></label>
           </div>
           <label><span>صورة الحساب</span><input type="file" onChange={(e) => setForm({ ...form, profileImage: e.target.files?.[0] || null })} /></label>
-          <label><span>نبذة مختصرة</span><textarea rows="4" value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} /></label>
           {status.error ? <p className="error-text">{status.error}</p> : null}
           {status.success ? <p className="success-text">{status.success}</p> : null}
           <div className="header-actions">

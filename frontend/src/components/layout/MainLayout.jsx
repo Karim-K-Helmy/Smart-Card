@@ -65,8 +65,8 @@ export default function MainLayout() {
                 <i className="fa-solid fa-id-card"></i>
               </span>
               <div>
-                <strong>LineStart</strong>
-                <small>Smart Card Platform</small>
+                <strong>linestart</strong>
+                
               </div>
             </Link>
           </div>
@@ -116,7 +116,7 @@ export default function MainLayout() {
           <div className="footer-brand-col">
             <h4>
               <i className="fa-solid fa-id-card"></i>
-              <span>LineStart</span>
+              <span>linestart</span>
             </h4>
             <p>
               منصة بطاقات ذكية تساعدك على تقديم هويتك الرقمية وعرض بياناتك وخدماتك بأسلوب احترافي، سريع، ومتوافق مع مختلف الأجهزة.

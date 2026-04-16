@@ -7,8 +7,9 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import { useAuth } from '../../context/AuthContext';
 import { createProduct, deleteProduct, getMyProducts, updateProduct } from '../../services/api/users';
-import { extractApiError } from '../../utils/api';
+import { extractApiError, toFormData } from '../../utils/api';
 
+const MAX_PRODUCTS = 10;
 const initialDraft = {
   name: '',
   description: '',
@@ -35,6 +36,7 @@ export default function ProductsPage({ embedded = false }) {
   const [status, setStatus] = useState({ loading: true, saving: false, error: '', success: '' });
 
   const visibleCount = useMemo(() => products.filter((item) => item.isVisible).length, [products]);
+  const hasReachedLimit = products.length >= MAX_PRODUCTS;
 
   const load = async () => {
     if (!isPro) {
@@ -60,16 +62,20 @@ export default function ProductsPage({ embedded = false }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (hasReachedLimit) {
+      setStatus((prev) => ({ ...prev, error: `يمكنك إضافة ${MAX_PRODUCTS} منتجات كحد أقصى.`, success: '' }));
+      return;
+    }
     setStatus((prev) => ({ ...prev, saving: true, error: '', success: '' }));
     try {
-      await createProduct({
+      await createProduct(toFormData({
         name: draft.name,
         description: draft.description,
         price: draft.price === '' ? 0 : Number(draft.price),
         sortOrder: Number(draft.sortOrder || 0),
         isVisible: draft.isVisible,
         productImage: draft.productImage,
-      });
+      }));
       setDraft(initialDraft);
       setStatus((prev) => ({ ...prev, success: 'تمت إضافة العمل بنجاح مع كل البيانات.' }));
       await load();
@@ -97,14 +103,14 @@ export default function ProductsPage({ embedded = false }) {
     if (!editingProduct) return;
     setStatus((prev) => ({ ...prev, saving: true, error: '', success: '' }));
     try {
-      await updateProduct(editingProduct._id, {
+      await updateProduct(editingProduct._id, toFormData({
         name: editDraft.name,
         description: editDraft.description,
         price: editDraft.price === '' ? 0 : Number(editDraft.price),
         sortOrder: Number(editDraft.sortOrder || 0),
         isVisible: editDraft.isVisible,
         productImage: editDraft.productImage,
-      });
+      }));
       setStatus((prev) => ({ ...prev, success: 'تم تحديث بيانات العمل بنجاح.' }));
       setEditingProduct(null);
       setEditDraft(initialDraft);
@@ -139,12 +145,12 @@ export default function ProductsPage({ embedded = false }) {
 
   return (
     <div className={embedded ? 'stack-md profile-section-embedded' : 'stack-lg'}>
-      {!embedded ? <PageHeader title="الأعمال والمنتجات" text="أضف أعمالك بصورة وسعر ووصف، وعدّل المنتجات القديمة بالكامل متى احتجت." /> : null}
+      {!embedded ? <PageHeader title="الأعمال والمنتجات" text={`أضف أعمالك بصورة وسعر ووصف، وعدّل المنتجات القديمة بالكامل متى احتجت. الحد الأقصى ${MAX_PRODUCTS} منتجات.`} /> : null}
 
       <div className="products-dashboard-strip">
         <div className="mini-insight-card">
           <span>إجمالي الأعمال</span>
-          <strong>{products.length}</strong>
+          <strong>{products.length} / {MAX_PRODUCTS}</strong>
         </div>
         <div className="mini-insight-card">
           <span>الظاهر في البطاقة</span>
@@ -159,15 +165,16 @@ export default function ProductsPage({ embedded = false }) {
         <Card title="إضافة عمل جديد" className="products-form-card">
           <form className="form-card" onSubmit={handleSubmit}>
             <div className="form-helper-message">ℹ️ يمكنك ترك أي حقل فارغ، ولن يتم عرضه في صفحة عرض المنتج العامة.</div>
-            <label><span>اسم العمل / المنتج</span><input value={draft.name} onChange={(e) => handleFieldChange(setDraft, 'name', e.target.value)} required /></label>
-            <label><span>وصف مختصر</span><textarea rows="3" maxLength="120" value={draft.description} onChange={(e) => handleFieldChange(setDraft, 'description', e.target.value)} /></label>
+            {hasReachedLimit ? <p className="error-text">تم الوصول إلى الحد الأقصى المسموح به وهو {MAX_PRODUCTS} منتجات.</p> : null}
+            <label><span>اسم المنتج</span><input value={draft.name} onChange={(e) => handleFieldChange(setDraft, 'name', e.target.value)} required disabled={hasReachedLimit} /></label>
+            <label><span>وصف مختصر</span><textarea rows="3" maxLength="120" value={draft.description} onChange={(e) => handleFieldChange(setDraft, 'description', e.target.value)} disabled={hasReachedLimit} /></label>
             <div className="form-grid">
-              <label><span>السعر</span><input type="number" min="0" value={draft.price} onChange={(e) => handleFieldChange(setDraft, 'price', e.target.value)} /></label>
-              <label><span>ترتيب العرض</span><input type="number" min="0" value={draft.sortOrder} onChange={(e) => handleFieldChange(setDraft, 'sortOrder', e.target.value)} /></label>
+              <label><span>السعر</span><input type="number" min="0" value={draft.price} onChange={(e) => handleFieldChange(setDraft, 'price', e.target.value)} disabled={hasReachedLimit} /></label>
+              <label><span>ترتيب العرض</span><input type="number" min="0" value={draft.sortOrder} onChange={(e) => handleFieldChange(setDraft, 'sortOrder', e.target.value)} disabled={hasReachedLimit} /></label>
             </div>
-            <label><span>صورة العمل</span><input type="file" accept="image/*" onChange={(e) => handleFieldChange(setDraft, 'productImage', e.target.files?.[0] || null)} /></label>
-            <label className="checkbox-line"><input type="checkbox" checked={draft.isVisible} onChange={(e) => handleFieldChange(setDraft, 'isVisible', e.target.checked)} /> إظهار العمل في البروفايل العام</label>
-            <Button type="submit" disabled={status.saving}>{status.saving ? 'جارٍ الحفظ...' : 'حفظ العمل'}</Button>
+            <label><span>صورة العمل</span><input type="file" accept="image/*" onChange={(e) => handleFieldChange(setDraft, 'productImage', e.target.files?.[0] || null)} disabled={hasReachedLimit} /></label>
+            <label className="checkbox-line"><input type="checkbox" checked={draft.isVisible} onChange={(e) => handleFieldChange(setDraft, 'isVisible', e.target.checked)} disabled={hasReachedLimit} /> إظهار العمل في البروفايل العام</label>
+            <Button type="submit" disabled={status.saving || hasReachedLimit}>{status.saving ? 'جارٍ الحفظ...' : 'حفظ العمل'}</Button>
           </form>
         </Card>
 
@@ -222,7 +229,7 @@ export default function ProductsPage({ embedded = false }) {
       >
         <form className="form-card" onSubmit={handleUpdate}>
           <div className="form-helper-message">ℹ️ يمكنك ترك أي حقل فارغ، ولن يتم عرضه في صفحة عرض المنتج العامة.</div>
-          <label><span>اسم العمل / المنتج</span><input value={editDraft.name} onChange={(e) => handleFieldChange(setEditDraft, 'name', e.target.value)} required /></label>
+          <label><span>اسم المنتج</span><input value={editDraft.name} onChange={(e) => handleFieldChange(setEditDraft, 'name', e.target.value)} required /></label>
           <label><span>الوصف المختصر</span><textarea rows="3" maxLength="120" value={editDraft.description} onChange={(e) => handleFieldChange(setEditDraft, 'description', e.target.value)} /></label>
           <div className="form-grid">
             <label><span>السعر</span><input type="number" min="0" value={editDraft.price} onChange={(e) => handleFieldChange(setEditDraft, 'price', e.target.value)} /></label>
