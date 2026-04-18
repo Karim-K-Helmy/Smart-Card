@@ -1,13 +1,59 @@
 import { createContext, useContext, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+
+export const USER_AUTH_KEY = 'userAuth';
+export const ADMIN_AUTH_KEY = 'adminAuth';
+export const USER_TOKEN_KEY = 'userToken';
+export const ADMIN_TOKEN_KEY = 'adminToken';
 
 const AuthContext = createContext(null);
-const STORAGE_KEY = 'linestart-auth';
 
-const initialState = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
+const EMPTY_AUTH = {
   token: '',
   role: '',
   user: null,
 };
+
+function readStoredAuth(storageKey, tokenKey, fallbackRole) {
+  const rawAuth = localStorage.getItem(storageKey);
+  const rawToken = localStorage.getItem(tokenKey);
+
+  if (!rawAuth && !rawToken) {
+    return { ...EMPTY_AUTH };
+  }
+
+  try {
+    const parsed = rawAuth ? JSON.parse(rawAuth) : {};
+    return {
+      token: parsed?.token || rawToken || '',
+      role: parsed?.role || fallbackRole,
+      user: parsed?.user || null,
+    };
+  } catch {
+    return {
+      token: rawToken || '',
+      role: fallbackRole,
+      user: null,
+    };
+  }
+}
+
+function persistStoredAuth(storageKey, tokenKey, nextState) {
+  const normalized = {
+    token: nextState?.token || '',
+    role: nextState?.role || '',
+    user: nextState?.user || null,
+  };
+
+  if (normalized.token) {
+    localStorage.setItem(storageKey, JSON.stringify(normalized));
+    localStorage.setItem(tokenKey, normalized.token);
+    return;
+  }
+
+  localStorage.removeItem(storageKey);
+  localStorage.removeItem(tokenKey);
+}
 
 function normalizeUser(user) {
   if (!user || typeof user !== 'object') return null;
@@ -27,61 +73,126 @@ function normalizeUser(user) {
     status: user.status || '',
     role: user.role || 'user',
     avatarUrl: user.avatarUrl || user.profileImage || '',
+    updatedAt: user.updatedAt || '',
     emailVerified: Boolean(user.emailVerified ?? true),
     isPrimaryAdmin: Boolean(user.isPrimaryAdmin),
   };
 }
 
-export function AuthProvider({ children }) {
-  const [authState, setAuthState] = useState(initialState);
+export function getStoredUserToken() {
+  return localStorage.getItem(USER_TOKEN_KEY) || readStoredAuth(USER_AUTH_KEY, USER_TOKEN_KEY, 'user').token || '';
+}
 
-  const save = (nextState) => {
-    setAuthState(nextState);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+export function getStoredAdminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY) || readStoredAuth(ADMIN_AUTH_KEY, ADMIN_TOKEN_KEY, 'admin').token || '';
+}
+
+export function AuthProvider({ children }) {
+  const location = useLocation();
+  const [userAuth, setUserAuth] = useState(() => readStoredAuth(USER_AUTH_KEY, USER_TOKEN_KEY, 'user'));
+  const [adminAuth, setAdminAuth] = useState(() => readStoredAuth(ADMIN_AUTH_KEY, ADMIN_TOKEN_KEY, 'admin'));
+
+  const saveUserAuth = (nextState) => {
+    const normalized = {
+      token: nextState?.token || '',
+      role: 'user',
+      user: normalizeUser(nextState?.user),
+    };
+    setUserAuth(normalized);
+    persistStoredAuth(USER_AUTH_KEY, USER_TOKEN_KEY, normalized);
+  };
+
+  const saveAdminAuth = (nextState) => {
+    const normalized = {
+      token: nextState?.token || '',
+      role: 'admin',
+      user: normalizeUser(nextState?.user),
+    };
+    setAdminAuth(normalized);
+    persistStoredAuth(ADMIN_AUTH_KEY, ADMIN_TOKEN_KEY, normalized);
   };
 
   const loginAsUser = (payload) => {
-    save({
+    saveUserAuth({
       token: payload?.token || '',
-      role: 'user',
-      user: normalizeUser(payload?.user),
+      user: payload?.user,
     });
   };
 
   const loginAsAdmin = (payload) => {
-    save({
+    saveAdminAuth({
       token: payload?.token || '',
-      role: 'admin',
-      user: normalizeUser(payload?.admin),
+      user: payload?.admin,
     });
   };
 
   const updateStoredUser = (userPatch) => {
-    save({
-      ...authState,
+    if (location.pathname.startsWith('/admin')) {
+      saveAdminAuth({
+        ...adminAuth,
+        user: {
+          ...(adminAuth.user || {}),
+          ...(userPatch || {}),
+        },
+      });
+      return;
+    }
+
+    saveUserAuth({
+      ...userAuth,
       user: {
-        ...(authState.user || {}),
-        ...normalizeUser({ ...(authState.user || {}), ...(userPatch || {}) }),
+        ...(userAuth.user || {}),
+        ...(userPatch || {}),
       },
     });
   };
 
-  const logout = () => {
-    save({ token: '', role: '', user: null });
+  const logoutUser = () => saveUserAuth(EMPTY_AUTH);
+  const logoutAdmin = () => saveAdminAuth(EMPTY_AUTH);
+
+  const logout = (role) => {
+    if (role === 'admin') {
+      logoutAdmin();
+      return;
+    }
+
+    if (role === 'user') {
+      logoutUser();
+      return;
+    }
+
+    if (location.pathname.startsWith('/admin')) {
+      logoutAdmin();
+      return;
+    }
+
+    logoutUser();
   };
+
+  const currentAuth = location.pathname.startsWith('/admin') ? adminAuth : userAuth;
+  const preferredDashboardPath = adminAuth.token ? '/admin' : userAuth.token ? '/dashboard' : '/auth/login';
 
   const value = useMemo(
     () => ({
-      authState,
-      isAuthenticated: Boolean(authState.token),
-      isUser: authState.role === 'user',
-      isAdmin: authState.role === 'admin',
+      authState: currentAuth,
+      currentAuth,
+      userAuth,
+      adminAuth,
+      isAuthenticated: Boolean(currentAuth.token),
+      isUserAuthenticated: Boolean(userAuth.token),
+      isAdminAuthenticated: Boolean(adminAuth.token),
+      isUser: Boolean(userAuth.token) && !location.pathname.startsWith('/admin'),
+      isAdmin: Boolean(adminAuth.token) && location.pathname.startsWith('/admin'),
+      hasAnySession: Boolean(userAuth.token || adminAuth.token),
+      preferredDashboardPath,
       loginAsUser,
       loginAsAdmin,
       updateStoredUser,
       logout,
+      logoutUser,
+      logoutAdmin,
     }),
-    [authState],
+    [currentAuth, userAuth, adminAuth, location.pathname, preferredDashboardPath],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

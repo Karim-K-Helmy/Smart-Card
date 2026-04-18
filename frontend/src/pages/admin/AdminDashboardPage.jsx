@@ -15,18 +15,33 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     const load = async () => {
-      try {
-        const [dashboardRes, usersRes, receiptsRes] = await Promise.all([
-          getDashboard(),
-          listUsers({ limit: 5 }),
-          listAdminReceipts({ limit: 5 }),
-        ]);
-        setStats(dashboardRes.data.data);
-        setUsers(usersRes.data.data.data || []);
-        setReceipts(receiptsRes.data.data.data || []);
-      } catch (apiError) {
-        setError(extractApiError(apiError));
+      const [dashboardRes, usersRes, receiptsRes] = await Promise.allSettled([
+        getDashboard(),
+        listUsers({ limit: 5 }),
+        listAdminReceipts({ limit: 5 }),
+      ]);
+
+      const errors = [];
+
+      if (dashboardRes.status === 'fulfilled') {
+        setStats(dashboardRes.value.data.data);
+      } else {
+        errors.push(extractApiError(dashboardRes.reason));
       }
+
+      if (usersRes.status === 'fulfilled') {
+        setUsers(usersRes.value.data.data.data || []);
+      } else {
+        errors.push(extractApiError(usersRes.reason));
+      }
+
+      if (receiptsRes.status === 'fulfilled') {
+        setReceipts(receiptsRes.value.data.data.data || []);
+      } else {
+        errors.push(extractApiError(receiptsRes.reason));
+      }
+
+      setError(errors[0] || '');
     };
     load();
   }, []);

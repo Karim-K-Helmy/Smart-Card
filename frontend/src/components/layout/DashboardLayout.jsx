@@ -97,7 +97,7 @@ export default function DashboardLayout({ area }) {
   }, [location.pathname]);
 
   const handleLogout = () => {
-    logout();
+    logout(area);
     navigate(area === 'admin' ? '/admin/login' : '/');
   };
 
@@ -150,6 +150,11 @@ export default function DashboardLayout({ area }) {
             ))}
           </nav>
         </div>
+
+        <a className="logout-btn home-return-btn" href="/">
+          <i className="fa-solid fa-house"></i>
+          <span>العودة للرئيسية</span>
+        </a>
 
         <button className="logout-btn" type="button" onClick={handleLogout}>
           <i className="fa-solid fa-sign-out-alt"></i>

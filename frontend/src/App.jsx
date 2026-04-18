@@ -3,10 +3,6 @@ import MainLayout from './components/layout/MainLayout';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import HomePage from './pages/public/HomePage';
-import AboutPage from './pages/public/AboutPage';
-import PricingPage from './pages/public/PricingPage';
-import ContactPage from './pages/public/ContactPage';
-import FaqPage from './pages/public/FaqPage';
 import PublicProfilePage from './pages/public/PublicProfilePage';
 import RegisterPage from './pages/auth/RegisterPage';
 import LoginPage from './pages/auth/LoginPage';
@@ -42,10 +38,6 @@ function App() {
     <Routes>
       <Route element={<MainLayout />}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/contact" element={<ContactPage />} />
-        <Route path="/faq" element={<FaqPage />} />
         <Route path="/auth/register" element={<RegisterPage />} />
         <Route path="/auth/login" element={<LoginPage />} />
         <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />

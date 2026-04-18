@@ -3,6 +3,10 @@ const Admin = require('../../DB/Models/admin.model');
 const { verifyToken } = require('../services/token.service');
 const { AppError, asyncHandler } = require('../utils/errorhandling');
 
+const hasPathSegment = (value = '', segment = '') => new RegExp(`(^|/)${segment}(/|$)`).test(String(value || ''));
+const isAdminRoute = (req) => hasPathSegment(req.originalUrl || req.baseUrl || req.path || '', 'admin');
+const isUserRoute = (req) => hasPathSegment(req.originalUrl || req.baseUrl || req.path || '', 'users');
+
 const auth = asyncHandler(async (req, res, next) => {
   const authorization = req.headers.authorization;
 
@@ -12,8 +16,21 @@ const auth = asyncHandler(async (req, res, next) => {
 
   const token = authorization.split(' ')[1];
   const decoded = verifyToken(token);
+  const accountModel = decoded?.accountModel;
 
-  if (decoded.accountModel === 'Admin') {
+  if (!accountModel) {
+    return next(new AppError('Unauthorized: invalid token payload', 401));
+  }
+
+  if (isAdminRoute(req) && accountModel !== 'Admin') {
+    return next(new AppError('Forbidden: admin token required', 403));
+  }
+
+  if (isUserRoute(req) && accountModel !== 'User') {
+    return next(new AppError('Forbidden: user token required', 403));
+  }
+
+  if (accountModel === 'Admin') {
     const admin = await Admin.findById(decoded.id).select('+passwordHash');
     if (!admin) {
       return next(new AppError('Admin not found', 404));
@@ -26,6 +43,10 @@ const auth = asyncHandler(async (req, res, next) => {
       accountModel: 'Admin',
     };
     return next();
+  }
+
+  if (accountModel !== 'User') {
+    return next(new AppError('Unauthorized: unsupported account model', 401));
   }
 
   const user = await User.findById(decoded.id).select('+passwordHash');
