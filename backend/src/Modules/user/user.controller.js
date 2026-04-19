@@ -76,7 +76,7 @@ const changePassword = async (req, res) => {
 };
 
 const createProduct = async (req, res) => {
-  const data = await userService.createProduct(req.user._id, req.body, req.file || (req.files && req.files.productImage && req.files.productImage[0]));
+  const data = await userService.createProduct(req.user._id, req.body, req.files || req.file || {});
   res.status(201).json({ success: true, message: 'Product created successfully', data });
 };
 
@@ -86,7 +86,7 @@ const getMyProducts = async (req, res) => {
 };
 
 const updateProduct = async (req, res) => {
-  const data = await userService.updateProduct(req.user._id, req.params.productId, req.body, req.file || (req.files && req.files.productImage && req.files.productImage[0]));
+  const data = await userService.updateProduct(req.user._id, req.params.productId, req.body, req.files || req.file || {});
   res.status(200).json({ success: true, message: 'Product updated successfully', data });
 };
 

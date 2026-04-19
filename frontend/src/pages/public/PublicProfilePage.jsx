@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import EmptyState from '../../components/common/EmptyState';
+import PublicUnavailableView from '../../components/common/PublicUnavailableView';
 import { getPublicProfile } from '../../services/api/users';
 import { extractApiError } from '../../utils/api';
 const omarProfileIcon = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='24' fill='%230a3d91'/%3E%3Ctext x='50%25' y='55%25' font-size='32' text-anchor='middle' fill='white' font-family='Arial'%3EOE%3C/text%3E%3C/svg%3E";
@@ -81,6 +82,7 @@ export default function PublicProfilePage() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [unavailableState, setUnavailableState] = useState(null);
   const [expandedLocations, setExpandedLocations] = useState({});
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
@@ -90,11 +92,34 @@ export default function PublicProfilePage() {
     const load = async () => {
       setLoading(true);
       setError('');
+      setUnavailableState(null);
       try {
         const { data } = await getPublicProfile(slug);
         setProfile(data.data);
       } catch (apiError) {
-        setError(extractApiError(apiError));
+        setProfile(null);
+        const apiCode = apiError?.response?.data?.code;
+        const apiDetails = apiError?.response?.data?.details || {};
+
+        if (apiCode === 'ACCOUNT_SUSPENDED') {
+          setUnavailableState({
+            badge: apiDetails.subtitle || 'Profile Temporarily Unavailable',
+            title: apiDetails.title || 'هذا الحساب غير متاح حالياً',
+            message: 'تم إيقاف هذا الحساب أو إخفاؤه مؤقتاً، لذلك لا يمكن عرض أي بيانات خاصة بالملف الشخصي حالياً.',
+            note: 'This account is currently unavailable for public viewing.',
+            iconClass: 'fa-user-lock',
+          });
+        } else if (apiCode === 'CARD_SUSPENDED') {
+          setUnavailableState({
+            badge: apiDetails.subtitle || 'Card Temporarily Unavailable',
+            title: apiDetails.title || 'تم إيقاف هذه البطاقة',
+            message: 'تم تعليق هذه البطاقة من قِبل الإدارة، لذلك تم إخفاء جميع بيانات الملف الشخصي والبطاقة بالكامل.',
+            note: 'This card has been suspended and is not available right now.',
+            iconClass: 'fa-id-card',
+          });
+        } else {
+          setError(extractApiError(apiError));
+        }
       } finally {
         setLoading(false);
       }
@@ -115,6 +140,10 @@ export default function PublicProfilePage() {
 
   if (loading) {
     return <section style={{ background: '#1a1a1a', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}><div>جارٍ تحميل البروفايل...</div></section>;
+  }
+
+  if (unavailableState) {
+    return <PublicUnavailableView {...unavailableState} />;
   }
 
   if (error || !profile) {
@@ -210,6 +239,8 @@ export default function PublicProfilePage() {
         .product-desc-box { background: #f8fafc; border-radius: 16px; padding: 12px 14px; color: #475467; line-height: 1.7; margin-bottom: 12px; min-height: 78px; }
         .product-price-box { background: linear-gradient(135deg, #8b3a3a, #d4695f); color: #fff; text-align: center; border-radius: 16px; padding: 12px 14px; font-size: 16px; font-weight: 800; }
         .product-name-label { font-size: 12px; color: #667085; margin-bottom: 6px; font-weight: 800; }
+        .product-card-main { background: linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%); }
+        .product-card-main img { width: 100%; height: 100%; object-fit: contain; padding: 16px; background: transparent; }
         .s-divider { width: 100%; height: 1px; background: #333; margin: 35px 0 20px; }
         .s-made-by { text-align: center; color: #9ca3af; margin-bottom: 14px; }
         .s-omar-card { background: linear-gradient(135deg, #ff6b9d 0%, #8b5cf6 50%, #06b6d4 100%); border-radius: 16px; padding: 30px; text-align: center; position: relative; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,.4); }
@@ -324,7 +355,7 @@ export default function PublicProfilePage() {
 
                   return (
                     <div key={product._id} className="store-card-container">
-                      <div className="store-card-main" onClick={() => hasImage ? openViewer([{ id: product.imagePublicId || product.image, src: product.image }], 0) : null} title="عرض صورة المنتج">
+                      <div className="store-card-main product-card-main" onClick={() => hasImage ? openViewer([{ id: product.imagePublicId || product.image, src: product.image }], 0) : null} title="عرض صورة المنتج">
                         {hasImage ? <img src={product.image} alt={product.name || 'product'} /> : <div className="bc-fallback-letter" style={{ fontSize: 60 }}>📦</div>}
                       </div>
                       <div className="bc-card-footer">

@@ -651,24 +651,33 @@ const listCards = async ({ page = 1, limit = 10, isActive }) => {
 };
 
 const toggleCardStatus = async (admin, cardId, isActive) => {
-  const card = await Card.findById(cardId);
+  const card = await Card.findById(cardId).populate('userId', 'fullName email');
   if (!card) {
     throw new AppError('Card not found', 404);
   }
 
-  card.isActive = isActive;
-  if (isActive) {
-    card.activatedAt = card.activatedAt || new Date();
+  const now = new Date();
+  const nextState = Boolean(isActive);
+
+  card.isActive = nextState;
+  card.lastStatusChangedAt = now;
+
+  if (nextState) {
+    card.activatedAt = now;
+    card.suspendedAt = null;
+  } else {
+    card.suspendedAt = now;
   }
+
   await card.save();
 
   await logAdminAction({
     adminId: admin._id,
-    userId: card.userId,
+    userId: card.userId?._id || card.userId,
     actionType: 'edit',
     targetTable: 'Cards',
     targetId: card._id,
-    notes: `Card active state changed to ${isActive}`,
+    notes: `Card active state changed to ${nextState}`,
   });
 
   return card;

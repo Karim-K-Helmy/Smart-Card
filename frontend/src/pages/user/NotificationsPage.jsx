@@ -29,7 +29,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="stack-lg">
-      <PageHeader title="الإشعارات" text="آخر التحديثات المتعلقة بالحساب والطلبات والمدفوعات." />
+      <PageHeader title="الإشعارات" text="آخر التحديثات المتعلقة بالحساب والطلبات والمدفوعات وحالة البطاقة." />
       {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
       <Card>
         <div className="stack-md">

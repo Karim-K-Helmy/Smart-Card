@@ -193,8 +193,11 @@ const ensureActiveUser = (user) => {
   if (!user) {
     throw new AppError('User not found', 404);
   }
-  if (['deleted', 'frozen'].includes(user.status)) {
-    throw new AppError('This account is not allowed to login', 403);
+  if (user.status === 'deleted') {
+    throw new AppError('هذا الحساب غير متاح حالياً.', 403, 'error', 'ACCOUNT_DELETED');
+  }
+  if (user.status === 'frozen') {
+    throw new AppError('تم إيقاف حسابك، يُرجى الرجوع إلى الإدارة.', 403, 'error', 'ACCOUNT_SUSPENDED');
   }
 };
 
@@ -260,11 +263,17 @@ const login = async ({ emailOrPhone, password }) => {
     throw new AppError('يجب تأكيد الحساب أولاً باستخدام رمز OTP المرسل إلى بريدك الإلكتروني.', 403);
   }
 
-  ensureActiveUser(user);
-
   const matched = await user.comparePassword(password);
   if (!matched) {
     throw new AppError('Invalid credentials', 401);
+  }
+
+  if (user.status === 'deleted') {
+    throw new AppError('هذا الحساب غير متاح حالياً.', 403, 'error', 'ACCOUNT_DELETED');
+  }
+
+  if (user.status === 'frozen') {
+    throw new AppError('تم إيقاف حسابك، يُرجى الرجوع إلى الإدارة.', 403, 'error', 'ACCOUNT_SUSPENDED');
   }
 
   user.lastLoginAt = new Date();
@@ -530,23 +539,46 @@ const buildReceiptNotice = (latestReceipt) => {
 };
 
 const buildCardNotice = (card) => {
-  if (!card?.isActive) return null;
+  if (!card) return null;
 
-  return {
-    id: `card-${card._id}`,
-    title: 'بطاقتك مفعلة',
-    text: `كود البطاقة: ${card.cardCode}. الرابط جاهز للمشاركة.`,
-    status: 'success',
-    createdAt: card.activatedAt || card.createdAt || new Date(),
-  };
+  if (card.isActive) {
+    return {
+      id: `card-${card._id}`,
+      title: 'بطاقتك مفعلة',
+      text: `كود البطاقة: ${card.cardCode}. الرابط جاهز للمشاركة.`,
+      status: 'success',
+      createdAt: card.lastStatusChangedAt || card.activatedAt || card.createdAt || new Date(),
+    };
+  }
+
+  if (card.suspendedAt) {
+    return {
+      id: `card-suspended-${card._id}`,
+      title: 'تم إيقاف بطاقتك',
+      text: 'تم إيقاف بطاقتك مؤقتًا من الإدارة، وتم تعطيل الصفحة العامة الخاصة بها. يُرجى الرجوع إلى الإدارة.',
+      status: 'danger',
+      createdAt: card.suspendedAt || card.lastStatusChangedAt || new Date(),
+    };
+  }
+
+  return null;
 };
 
 const buildUserNotificationPayload = async (currentUser) => {
   const user = await getUserWithNotificationState(currentUser);
-  const [orders, receipts, card, orderUnreadCount, receiptUnreadCount, latestUnreadOrder, latestUnreadReceipt, latestCard] = await Promise.all([
+  const cardNotificationFilter = { userId: user._id };
+  if (user.notificationSeenAt?.notifications) {
+    cardNotificationFilter.$or = [
+      { activatedAt: { $gt: user.notificationSeenAt.notifications } },
+      { suspendedAt: { $gt: user.notificationSeenAt.notifications } },
+      { lastStatusChangedAt: { $gt: user.notificationSeenAt.notifications } },
+    ];
+  }
+
+  const [orders, receipts, card, orderUnreadCount, receiptUnreadCount, latestUnreadOrder, latestUnreadReceipt, latestCardEvent] = await Promise.all([
     CardOrder.find({ userId: user._id }).populate('cardPlanId').sort({ createdAt: -1 }).limit(5),
     PaymentReceipt.find({ userId: user._id }).populate('paymentMethodId').sort({ createdAt: -1 }).limit(5),
-    Card.findOne({ userId: user._id }).sort({ activatedAt: -1, createdAt: -1 }),
+    Card.findOne({ userId: user._id }).sort({ lastStatusChangedAt: -1, suspendedAt: -1, activatedAt: -1 }),
     CardOrder.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.orders ? { updatedAt: { $gt: user.notificationSeenAt.orders } } : {}) }),
     PaymentReceipt.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) }),
     CardOrder.findOne({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { updatedAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
@@ -555,8 +587,8 @@ const buildUserNotificationPayload = async (currentUser) => {
     PaymentReceipt.findOne({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
       .populate('paymentMethodId')
       .sort({ createdAt: -1 }),
-    Card.findOne({ userId: user._id, isActive: true, ...(user.notificationSeenAt?.notifications ? { activatedAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
-      .sort({ activatedAt: -1, createdAt: -1 }),
+    Card.findOne(cardNotificationFilter)
+      .sort({ lastStatusChangedAt: -1, suspendedAt: -1, activatedAt: -1 }),
   ]);
 
   const notices = [];
@@ -584,7 +616,7 @@ const buildUserNotificationPayload = async (currentUser) => {
   const unreadNotificationDates = [
     latestUnreadOrder?.updatedAt || latestUnreadOrder?.createdAt || null,
     latestUnreadReceipt?.createdAt || null,
-    latestCard?.activatedAt || latestCard?.createdAt || null,
+    latestCardEvent?.lastStatusChangedAt || latestCardEvent?.suspendedAt || latestCardEvent?.activatedAt || latestCardEvent?.createdAt || null,
   ]
     .filter(Boolean)
     .map((item) => new Date(item))
@@ -600,7 +632,7 @@ const buildUserNotificationPayload = async (currentUser) => {
   return {
     counts: {
       orders: orderUnreadCount,
-      notifications: orderUnreadCount + receiptUnreadCount + (latestCard ? 1 : 0),
+      notifications: orderUnreadCount + receiptUnreadCount + (latestCardEvent ? 1 : 0),
     },
     latestAt: {
       orders: latestOrder?.updatedAt || latestOrder?.createdAt || null,
@@ -786,6 +818,20 @@ const ensureProUser = (user) => {
   }
 };
 
+const resolveProductImageFile = (files) => {
+  if (!files) return null;
+  if (Array.isArray(files?.productImage) && files.productImage[0]) {
+    return files.productImage[0];
+  }
+  if (files?.productImage && typeof files.productImage === 'object' && files.productImage.path) {
+    return files.productImage;
+  }
+  if (files?.path) {
+    return files;
+  }
+  return null;
+};
+
 const createProduct = async (currentUser, payload, files) => {
   const user = await User.findById(currentUser._id);
   if (!user) {
@@ -812,8 +858,9 @@ const createProduct = async (currentUser, payload, files) => {
     sortOrder: payload.sortOrder ?? 0,
   });
 
-  if (files?.productImage?.[0]) {
-    const uploaded = await optimizeAndUpload(files.productImage[0].path, 'linestart/products');
+  const productImageFile = resolveProductImageFile(files);
+  if (productImageFile) {
+    const uploaded = await optimizeAndUpload(productImageFile.path, 'linestart/products');
     product.image = uploaded.secureUrl;
     product.imagePublicId = uploaded.publicId;
   }
@@ -855,8 +902,9 @@ const updateProduct = async (currentUser, productId, payload, files) => {
   if (payload.isVisible !== undefined) product.isVisible = payload.isVisible;
   if (payload.sortOrder !== undefined) product.sortOrder = payload.sortOrder;
 
-  if (files?.productImage?.[0]) {
-    const uploaded = await optimizeAndUpload(files.productImage[0].path, 'linestart/products');
+  const productImageFile = resolveProductImageFile(files);
+  if (productImageFile) {
+    const uploaded = await optimizeAndUpload(productImageFile.path, 'linestart/products');
     if (product.imagePublicId) {
       await removeFromCloudinary(product.imagePublicId);
     }
@@ -895,7 +943,32 @@ const getPublicProfile = async (slug) => {
   }
 
   if (user.status !== 'active') {
-    throw new AppError('This profile is not publicly available right now', 403);
+    throw new AppError(
+      'هذا الحساب غير متاح حالياً.',
+      403,
+      'error',
+      'ACCOUNT_SUSPENDED',
+      {
+        unavailableType: 'account',
+        title: 'هذا الحساب غير متاح حالياً',
+        subtitle: 'Profile Temporarily Unavailable',
+      }
+    );
+  }
+
+  const latestCard = await Card.findOne({ userId: user._id }).sort({ activatedAt: -1, createdAt: -1 });
+  if (latestCard && !latestCard.isActive) {
+    throw new AppError(
+      'تم إيقاف هذه البطاقة، يُرجى الرجوع إلى الإدارة.',
+      403,
+      'error',
+      'CARD_SUSPENDED',
+      {
+        unavailableType: 'card',
+        title: 'تم إيقاف هذه البطاقة',
+        subtitle: 'Card Temporarily Unavailable',
+      }
+    );
   }
 
   const data = await buildProfileResponse(user);

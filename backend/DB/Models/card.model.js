@@ -47,6 +47,14 @@ const cardSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    suspendedAt: {
+      type: Date,
+      default: null,
+    },
+    lastStatusChangedAt: {
+      type: Date,
+      default: null,
+    },
     expiresAt: {
       type: Date,
       default: null,

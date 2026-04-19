@@ -179,6 +179,10 @@ const getRenderableCard = async (user) => {
     throw new AppError('لم يتم العثور على بطاقة مفعلة لهذا المستخدم', 404);
   }
 
+  if (!card.isActive) {
+    throw new AppError('هذه البطاقة موقوفة حالياً ولا يمكن معاينتها أو تحميلها.', 403, 'error', 'CARD_SUSPENDED');
+  }
+
   const planCode = card?.cardOrderId?.cardPlanId?.planCode;
   if (!planCode) {
     throw new AppError('تعذر تحديد نوع الباقة الخاصة بالبطاقة', 400);

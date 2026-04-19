@@ -1,8 +1,10 @@
 class AppError extends Error {
-  constructor(message, statusCode = 500, status = 'error') {
+  constructor(message, statusCode = 500, status = 'error', code = '', details = null) {
     super(message);
     this.statusCode = statusCode;
     this.status = status;
+    this.code = code || '';
+    this.details = details || null;
     this.isOperational = true;
     Error.captureStackTrace(this, this.constructor);
   }
@@ -44,6 +46,14 @@ const globalErrorHandler = (incomingError, req, res, next) => {
     status,
     message: error.message || 'Internal server error',
   };
+
+  if (error.code) {
+    response.code = error.code;
+  }
+
+  if (error.details) {
+    response.details = error.details;
+  }
 
   if (process.env.NODE_ENV === 'development') {
     response.stack = error.stack;

@@ -34,6 +34,11 @@ export default function ProductsPage({ embedded = false }) {
   const [editingProduct, setEditingProduct] = useState(null);
   const [editDraft, setEditDraft] = useState(initialDraft);
   const [status, setStatus] = useState({ loading: true, saving: false, error: '', success: '' });
+  const editImagePreview = useMemo(() => editDraft.productImage ? URL.createObjectURL(editDraft.productImage) : '', [editDraft.productImage]);
+
+  useEffect(() => () => {
+    if (editImagePreview) URL.revokeObjectURL(editImagePreview);
+  }, [editImagePreview]);
 
   const visibleCount = useMemo(() => products.filter((item) => item.isVisible).length, [products]);
   const hasReachedLimit = products.length >= MAX_PRODUCTS;
@@ -235,10 +240,10 @@ export default function ProductsPage({ embedded = false }) {
             <label><span>السعر</span><input type="number" min="0" value={editDraft.price} onChange={(e) => handleFieldChange(setEditDraft, 'price', e.target.value)} /></label>
             <label><span>ترتيب العرض</span><input type="number" min="0" value={editDraft.sortOrder} onChange={(e) => handleFieldChange(setEditDraft, 'sortOrder', e.target.value)} /></label>
           </div>
-          {editingProduct?.image ? (
+          {(editImagePreview || editingProduct?.image) ? (
             <div className="edit-product-preview">
-              <img src={editingProduct.image} alt={editingProduct.name} />
-              <span>الصورة الحالية</span>
+              <img src={editImagePreview || editingProduct.image} alt={editingProduct.name} />
+              <span>{editImagePreview ? 'معاينة الصورة الجديدة' : 'الصورة الحالية'}</span>
             </div>
           ) : null}
           <label><span>تغيير الصورة</span><input type="file" accept="image/*" onChange={(e) => handleFieldChange(setEditDraft, 'productImage', e.target.files?.[0] || null)} /></label>

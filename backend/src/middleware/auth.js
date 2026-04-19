@@ -62,11 +62,11 @@ const auth = asyncHandler(async (req, res, next) => {
   }
 
   if (user.status === 'deleted') {
-    return next(new AppError('This account was deleted', 403));
+    return next(new AppError('هذا الحساب غير متاح حالياً.', 403, 'error', 'ACCOUNT_DELETED'));
   }
 
   if (user.status === 'frozen') {
-    return next(new AppError('This account is temporarily frozen', 403));
+    return next(new AppError('تم إيقاف حسابك، يُرجى الرجوع إلى الإدارة.', 403, 'error', 'ACCOUNT_SUSPENDED'));
   }
 
   req.user = user;

@@ -62,6 +62,16 @@ export default function DashboardPage() {
 
       {error ? <Card><p className="error-text">{error}</p></Card> : null}
 
+      {data.card && data.card.isActive === false ? (
+        <Card>
+          <div className="notice-card notice-danger">
+            <strong>تم إيقاف البطاقة</strong>
+            <p>تم إيقاف بطاقتك من الإدارة، وتم تعطيل صفحة البروفايل العامة الخاصة بها مؤقتًا. يُرجى الرجوع إلى الإدارة.</p>
+            <small>{formatDate(data.card?.suspendedAt || data.card?.lastStatusChangedAt)}</small>
+          </div>
+        </Card>
+      ) : null}
+
       <div className="stats-grid">
         <StatCard label="حالة الحساب" value={authState.user?.status || 'active'} hint="من بيانات الحساب" />
         <StatCard label="حالة البطاقة" value={data.card?.isActive ? 'مفعلة' : latestOrder?.orderStatus || 'لا توجد'} hint="آخر حالة متاحة" />

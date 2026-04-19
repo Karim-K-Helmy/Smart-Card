@@ -27,9 +27,16 @@ export default function LoginPage() {
       loginAsUser(data.data);
       navigate(location.state?.from?.pathname || '/dashboard', { replace: true });
     } catch (apiError) {
-      setStatus({ loading: false, error: extractApiError(apiError) });
+      const apiCode = apiError?.response?.data?.code;
+      const message = apiCode === 'ACCOUNT_SUSPENDED'
+        ? 'تم إيقاف حسابك، يُرجى الرجوع إلى الإدارة.'
+        : extractApiError(apiError);
+
+      setStatus({ loading: false, error: message });
     }
   };
+
+  const isSuspensionError = /تم إيقاف حسابك|account_suspended|suspended/i.test(status.error);
 
   return (
     <section className="auth-section">
@@ -37,6 +44,49 @@ export default function LoginPage() {
         <p style={{ marginBottom: '24px', color: 'var(--muted)', textAlign: 'center' }}>
           أدخل بيانات حسابك لتسجيل الدخول إلى لوحة التحكم.
         </p>
+
+        {status.error ? (
+          <div
+            role="alert"
+            style={{
+              marginBottom: '18px',
+              padding: '16px 18px',
+              borderRadius: '18px',
+              border: isSuspensionError ? '1px solid rgba(249, 115, 22, .28)' : '1px solid rgba(239, 68, 68, .2)',
+              background: isSuspensionError
+                ? 'linear-gradient(135deg, rgba(249, 115, 22, .14), rgba(251, 146, 60, .06))'
+                : 'linear-gradient(135deg, rgba(239, 68, 68, .14), rgba(127, 29, 29, .08))',
+              color: isSuspensionError ? '#9a3412' : '#991b1b',
+              boxShadow: isSuspensionError
+                ? '0 14px 30px rgba(249, 115, 22, .10)'
+                : '0 14px 30px rgba(239, 68, 68, .08)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <span
+                style={{
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '12px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: isSuspensionError ? 'rgba(249, 115, 22, .16)' : 'rgba(239, 68, 68, .14)',
+                  color: isSuspensionError ? '#c2410c' : '#dc2626',
+                  flexShrink: 0,
+                }}
+              >
+                <i className={`fa-solid ${isSuspensionError ? 'fa-user-lock' : 'fa-triangle-exclamation'}`}></i>
+              </span>
+              <div>
+                <strong style={{ display: 'block', marginBottom: '4px', fontSize: '15px' }}>
+                  {isSuspensionError ? 'تنبيه من الإدارة' : 'تعذر تسجيل الدخول'}
+                </strong>
+                <span style={{ lineHeight: 1.8 }}>{status.error}</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <form className="form-card" onSubmit={handleSubmit}>
           <label>
