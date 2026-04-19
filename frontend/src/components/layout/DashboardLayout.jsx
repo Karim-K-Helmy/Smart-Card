@@ -162,8 +162,7 @@ export default function DashboardLayout({ area }) {
         </button>
       </aside>
 
-      <div className="dashboard-main">
-        <header className="dashboard-topbar">
+      <div className={`dashboard-main ${area === 'admin' ? 'dashboard-main-admin' : 'dashboard-main-user'}`}>        <header className="dashboard-topbar">
           <div className="dashboard-topbar-start">
             <button
               type="button"

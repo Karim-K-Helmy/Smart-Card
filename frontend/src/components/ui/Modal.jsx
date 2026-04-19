@@ -11,6 +11,7 @@ export default function Modal({
   fullscreenOnMobile = true,
   dismissible = true,
   className = '',
+  wrapBody = true,
 }) {
   useEffect(() => {
     if (!open) return undefined;
@@ -54,7 +55,7 @@ export default function Modal({
           ) : null}
         </div>
 
-        <div className="system-modal-body">{children}</div>
+        {wrapBody ? <div className="system-modal-body">{children}</div> : children}
 
         {footer ? <div className="system-modal-footer">{footer}</div> : null}
       </div>

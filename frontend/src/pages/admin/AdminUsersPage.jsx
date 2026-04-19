@@ -6,7 +6,7 @@ import Badge from '../../components/ui/Badge';
 import Modal from '../../components/ui/Modal';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { deleteUserByAdmin, listUsers, markAdminNotificationAsRead, toggleUserStatus, updateUserByAdmin } from '../../services/api/admin';
-import { extractApiError, formatDate } from '../../utils/api';
+import { extractApiError, formatDate, toFormData } from '../../utils/api';
 import { translateDisplayValue } from '../../utils/display';
 
 const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
@@ -18,7 +18,34 @@ const initialForm = {
   whatsappNumber: '',
   currentPlan: 'NONE',
   password: '',
+  profileImage: null,
+  removeProfileImage: false,
 };
+
+const getUserImage = (user) => user?.profileImage || user?.avatarUrl || '';
+
+const getInitials = (name) =>
+  String(name || 'U')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
+function ActionIconButton({ icon, label, variant = 'ghost', className = '', ...props }) {
+  return (
+    <Button
+      variant={variant}
+      className={`icon-action-btn ${className}`.trim()}
+      title={label}
+      aria-label={label}
+      {...props}
+    >
+      <i className={`fa-solid ${icon}`} aria-hidden="true"></i>
+    </Button>
+  );
+}
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -82,6 +109,8 @@ export default function AdminUsersPage() {
       whatsappNumber: user.whatsappNumber || '',
       currentPlan: user.currentPlan || 'NONE',
       password: '',
+      profileImage: null,
+      removeProfileImage: false,
     });
     setModalState({ open: true, saving: false, error: '' });
   };
@@ -98,17 +127,16 @@ export default function AdminUsersPage() {
 
     setModalState((prev) => ({ ...prev, saving: true, error: '' }));
     try {
-      const payload = {
+      const payload = toFormData({
         fullName: formValues.fullName.trim(),
         email: formValues.email.trim(),
         phone: formValues.phone.trim(),
         whatsappNumber: formValues.whatsappNumber.trim(),
         currentPlan: formValues.currentPlan,
-      };
-
-      if (formValues.password.trim()) {
-        payload.password = formValues.password.trim();
-      }
+        password: formValues.password.trim(),
+        profileImage: formValues.profileImage,
+        removeProfileImage: formValues.removeProfileImage,
+      });
 
       await updateUserByAdmin(editingUser._id, payload);
       await load();
@@ -153,12 +181,24 @@ export default function AdminUsersPage() {
     ];
   }, [editingUser]);
 
+  const profilePreview = useMemo(() => {
+    if (formValues.profileImage) return URL.createObjectURL(formValues.profileImage);
+    if (formValues.removeProfileImage) return '';
+    return getUserImage(editingUser);
+  }, [formValues.profileImage, formValues.removeProfileImage, editingUser]);
+
+  useEffect(() => () => {
+    if (profilePreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(profilePreview);
+    }
+  }, [profilePreview]);
+
   return (
     <>
       <div className="stack-lg">
         <PageHeader
           title="إدارة المستخدمين"
-          text="بحث، فلترة، تعديل بيانات المستخدم من نافذة احترافية كبيرة، مع التحكم في التجميد والحذف من لوحة الأدمن."
+          text="بحث وفلترة وتعديل بيانات المستخدمين من واجهة حديثة، مع إدارة التجميد والحذف والصورة الشخصية مباشرة من لوحة الأدمن."
           actions={<Button variant="secondary" onClick={load}>تحديث</Button>}
         />
         <Card icon="fa-users" className="admin-users-filters-card">
@@ -195,24 +235,39 @@ export default function AdminUsersPage() {
           </div>
         </Card>
         {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
-        <Card icon="fa-users">
+        <Card icon="fa-users" className="admin-users-table-card">
           <div className="table-like admin-users-table">
             <div className="table-row table-head admin-users-row">
-              <span>الاسم</span><span>البريد الإلكتروني</span><span>الهاتف</span><span>الباقة</span><span>الحالة</span><span>الإجراء</span>
+              <span>المستخدم</span><span>التواصل</span><span>الهاتف</span><span>الباقة</span><span>الحالة</span><span>الإجراءات</span>
             </div>
             {users.map((user) => (
-              <div key={user._id} className="table-row admin-users-row">
-                <span>{user.fullName}<br /><small>{formatDate(user.createdAt)}</small></span>
-                <span>{user.email}</span>
-                <span>{user.phone}</span>
-                <span>{translateDisplayValue(user.currentPlan || 'NONE')}</span>
-                <span><Badge tone={user.status}>{user.status}</Badge></span>
-                <span className="row-actions admin-users-actions">
-                  <Button variant="ghost" onClick={() => openEditModal(user)}>تعديل</Button>
+              <div key={user._id} className="table-row admin-users-row admin-user-card-row">
+                <span data-label="المستخدم" className="admin-user-identity-cell">
+                  <span className="admin-user-identity">
+                    {getUserImage(user) ? (
+                      <img src={getUserImage(user)} alt={user.fullName} className="admin-user-mini-avatar" />
+                    ) : (
+                      <span className="admin-user-mini-avatar admin-user-mini-avatar-fallback">{getInitials(user.fullName)}</span>
+                    )}
+                    <span>
+                      <strong>{user.fullName}</strong>
+                      <small>{formatDate(user.createdAt)}</small>
+                    </span>
+                  </span>
+                </span>
+                <span data-label="التواصل">
+                  <strong>{user.email}</strong>
+                  <small>{user.whatsappNumber || 'بدون واتساب'}</small>
+                </span>
+                <span data-label="الهاتف">{user.phone}</span>
+                <span data-label="الباقة"><Badge>{translateDisplayValue(user.currentPlan || 'NONE')}</Badge></span>
+                <span data-label="الحالة"><Badge tone={user.status}>{user.status}</Badge></span>
+                <span data-label="الإجراءات" className="row-actions admin-users-actions">
+                  <ActionIconButton icon="fa-pen-to-square" label="تعديل المستخدم" onClick={() => openEditModal(user)} />
                   {user.status !== 'frozen'
-                    ? <Button variant="secondary" onClick={() => requestStatusChange(user, 'frozen')}>تجميد</Button>
-                    : <Button onClick={() => requestStatusChange(user, 'active')}>إلغاء التجميد</Button>}
-                  <Button variant="danger" onClick={() => askRemoveUser(user)}>حذف نهائي</Button>
+                    ? <ActionIconButton icon="fa-user-lock" label="تجميد المستخدم" variant="secondary" onClick={() => requestStatusChange(user, 'frozen')} />
+                    : <ActionIconButton icon="fa-lock-open" label="إلغاء التجميد" onClick={() => requestStatusChange(user, 'active')} />}
+                  <ActionIconButton icon="fa-trash-can" label="حذف نهائي" variant="danger" onClick={() => askRemoveUser(user)} />
                 </span>
               </div>
             ))}
@@ -225,16 +280,21 @@ export default function AdminUsersPage() {
         onClose={closeEditModal}
         size="xl"
         title={`تعديل بيانات ${editingUser?.fullName || ''}`}
-        description="واجهة كبيرة وحديثة لتحديث البيانات الأساسية للمستخدم بدون نوافذ المتصفح التقليدية."
+        description="تحديث البيانات الأساسية والصورة الشخصية للمستخدم من نافذة إدارة حديثة." 
       >
         <div className="admin-modal-body">
           <aside className="admin-modal-side">
             <div className="admin-modal-profile-card">
-              <div className="admin-modal-avatar">{editingUser?.fullName?.charAt(0) || 'U'}</div>
+              {profilePreview ? (
+                <img className="admin-modal-avatar-image" src={profilePreview} alt={editingUser?.fullName} />
+              ) : (
+                <div className="admin-modal-avatar">{getInitials(editingUser?.fullName)}</div>
+              )}
               <h3>{editingUser?.fullName}</h3>
               <p>{editingUser?.email}</p>
               <div className="admin-modal-badges">
                 <Badge>{translateDisplayValue(editingUser?.currentPlan || 'NONE')}</Badge>
+                <Badge tone={editingUser?.status}>{editingUser?.status || 'pending'}</Badge>
               </div>
             </div>
 
@@ -252,24 +312,20 @@ export default function AdminUsersPage() {
             <div className="admin-modal-grid">
               <label>
                 <span>الاسم الكامل</span>
-                <input value={formValues.fullName} onChange={(e) => setFormValues((prev) => ({ ...prev, fullName: e.target.value }))} required />
+                <input value={formValues.fullName} onChange={(e) => setFormValues((prev) => ({ ...prev, fullName: e.target.value }))} />
               </label>
-
               <label>
                 <span>البريد الإلكتروني</span>
-                <input type="email" value={formValues.email} onChange={(e) => setFormValues((prev) => ({ ...prev, email: e.target.value }))} required />
+                <input type="email" value={formValues.email} onChange={(e) => setFormValues((prev) => ({ ...prev, email: e.target.value }))} />
               </label>
-
               <label>
                 <span>رقم الهاتف</span>
                 <input value={formValues.phone} onChange={(e) => setFormValues((prev) => ({ ...prev, phone: e.target.value }))} />
               </label>
-
               <label>
                 <span>رقم واتساب</span>
                 <input value={formValues.whatsappNumber} onChange={(e) => setFormValues((prev) => ({ ...prev, whatsappNumber: e.target.value }))} />
               </label>
-
               <label>
                 <span>الباقة الحالية</span>
                 <select value={formValues.currentPlan} onChange={(e) => setFormValues((prev) => ({ ...prev, currentPlan: e.target.value }))}>
@@ -278,23 +334,39 @@ export default function AdminUsersPage() {
                   <option value="PRO">Pro</option>
                 </select>
               </label>
-
               <label>
                 <span>كلمة مرور جديدة</span>
+                <input type="password" value={formValues.password} onChange={(e) => setFormValues((prev) => ({ ...prev, password: e.target.value }))} placeholder="اتركها فارغة إذا لا تريد التغيير" />
+              </label>
+              <label className="admin-modal-grid-full">
+                <span>الصورة الشخصية</span>
                 <input
-                  type="password"
-                  value={formValues.password}
-                  onChange={(e) => setFormValues((prev) => ({ ...prev, password: e.target.value }))}
-                  placeholder="اتركها فارغة إذا لا تريد تغييرها"
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFormValues((prev) => ({
+                    ...prev,
+                    profileImage: e.target.files?.[0] || null,
+                    removeProfileImage: false,
+                  }))}
                 />
               </label>
+              <label className="checkbox-line admin-check admin-modal-grid-full">
+                <input
+                  type="checkbox"
+                  checked={formValues.removeProfileImage}
+                  onChange={(e) => setFormValues((prev) => ({
+                    ...prev,
+                    removeProfileImage: e.target.checked,
+                    profileImage: e.target.checked ? null : prev.profileImage,
+                  }))}
+                />
+                إزالة الصورة الحالية
+              </label>
             </div>
-
             {modalState.error ? <p className="error-text">{modalState.error}</p> : null}
-
-            <div className="admin-modal-actions" style={{ display: 'flex', gap: '15px', justifyContent: 'flex-end', alignItems: 'center' }}>
-              <Button type="button" variant="ghost" onClick={closeEditModal} style={{ width: 'fit-content', minWidth: '100px', height: '40px', padding: '0 20px', flex: 'none' }}>إلغاء</Button>
-              <Button type="submit" disabled={modalState.saving} style={{ width: 'fit-content', minWidth: '140px', height: '40px', padding: '0 20px', flex: 'none' }}>{modalState.saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</Button>
+            <div className="admin-modal-actions">
+              <Button type="button" variant="ghost" size="sm" onClick={closeEditModal}>إلغاء</Button>
+              <Button type="submit" size="sm" disabled={modalState.saving}>{modalState.saving ? 'جارٍ الحفظ...' : 'حفظ التعديلات'}</Button>
             </div>
           </form>
         </div>
@@ -307,7 +379,6 @@ export default function AdminUsersPage() {
         title={confirmState.title}
         description={confirmState.description}
         loading={confirmState.loading}
-        confirmText="تأكيد الإجراء"
       />
     </>
   );

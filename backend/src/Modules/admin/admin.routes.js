@@ -63,7 +63,7 @@ router.post('/admins', auth, allowTo('admin', 'super_admin'), validate(createAdm
 router.put('/admins/:adminId', auth, allowTo('admin', 'super_admin'), validate(updateAdminSchema), asyncHandler(controller.updateAdmin));
 router.delete('/admins/:adminId', auth, allowTo('admin', 'super_admin'), validate(deleteEntitySchema), asyncHandler(controller.deleteAdmin));
 router.get('/users', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listUsers));
-router.put('/users/:userId', auth, allowTo('admin', 'super_admin'), validate(userUpdateSchema), asyncHandler(controller.updateUser));
+router.put('/users/:userId', auth, allowTo('admin', 'super_admin'), uploadSingle('profileImage'), validate(userUpdateSchema), asyncHandler(controller.updateUser));
 router.patch('/users/:userId/status', auth, allowTo('admin', 'super_admin'), validate(userStatusSchema), asyncHandler(controller.updateUserStatus));
 router.delete('/users/:userId', auth, allowTo('admin', 'super_admin'), validate(deleteEntitySchema), asyncHandler(controller.deleteUser));
 router.get('/orders', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.listOrders));

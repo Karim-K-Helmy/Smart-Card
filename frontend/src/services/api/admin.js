@@ -20,7 +20,9 @@ export const updateAdminUser = (adminId, payload) => http.put(`/admin/admins/${a
 export const deleteAdminUser = (adminId) => http.delete(`/admin/admins/${adminId}`);
 
 export const listUsers = (params) => http.get('/admin/users', { params });
-export const updateUserByAdmin = (userId, payload) => http.put(`/admin/users/${userId}`, payload);
+export const updateUserByAdmin = (userId, payload) => http.put(`/admin/users/${userId}`, payload, {
+  headers: { 'Content-Type': 'multipart/form-data' },
+});
 export const toggleUserStatus = (userId, payload) => http.patch(`/admin/users/${userId}/status`, payload);
 export const deleteUserByAdmin = (userId) => http.delete(`/admin/users/${userId}`);
 

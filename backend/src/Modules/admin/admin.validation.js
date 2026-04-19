@@ -58,6 +58,7 @@ const userUpdateSchema = Joi.object({
     currentPlan: Joi.string().valid('NONE', 'STAR', 'PRO'),
     status: Joi.string().valid('active', 'pending', 'frozen', 'deleted'),
     password: Joi.string().min(6).max(100).allow('', null),
+    removeProfileImage: Joi.boolean(),
   }).required(),
   params: Joi.object({
     userId: mongoId.required(),

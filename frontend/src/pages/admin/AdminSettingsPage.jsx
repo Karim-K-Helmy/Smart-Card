@@ -362,37 +362,80 @@ export default function AdminSettingsPage() {
         {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
         {status.success ? <Card><p className="success-text">{status.success}</p></Card> : null}
 
-        <div className="grid grid-2">
-          <Card title="ملف الأدمن الشخصي">
-            <div className="stack-md">
-              <div className="account-hero">
-                {avatarPreview ? (
-                  <img className="profile-avatar large avatar-image" src={avatarPreview} alt={profile.name || authState.user?.fullName} />
-                ) : (
-                  <div className="profile-avatar large">{getInitials(profile.name || authState.user?.fullName)}</div>
-                )}
-                <div>
-                  <strong>{profile.name || 'Admin'}</strong>
-                  <p className="muted">{profile.email || '-'}</p>
+        <div className="admin-settings-layout">
+          <div className="admin-settings-main-column stack-lg">
+            <Card title="ملف الأدمن الشخصي" className="admin-profile-card-compact">
+              <div className="admin-profile-tight-wrap">
+                <div className="account-hero admin-profile-hero-tight">
+                  {avatarPreview ? (
+                    <img className="profile-avatar large avatar-image" src={avatarPreview} alt={profile.name || authState.user?.fullName} />
+                  ) : (
+                    <div className="profile-avatar large">{getInitials(profile.name || authState.user?.fullName)}</div>
+                  )}
+                  <div>
+                    <strong>{profile.name || 'Admin'}</strong>
+                    <p className="muted">{profile.email || '-'}</p>
+                  </div>
+                </div>
+
+                <form className="form-card admin-profile-form-tight" onSubmit={saveProfile}>
+                  <div className="form-grid">
+                    <label><span>اسم الأدمن</span><input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
+                    <label><span>البريد الأساسي (ثابت من .env)</span><input type="email" value={profile.email} readOnly disabled /></label>
+                  </div>
+                  <label><span>صورة الأدمن</span><input type="file" accept="image/*" onChange={(e) => setProfile({ ...profile, avatar: e.target.files?.[0] || null })} /></label>
+                  <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
+                  <label><span>كلمة مرور جديدة</span><input type="password" value={profile.newPassword} onChange={(e) => setProfile({ ...profile, newPassword: e.target.value })} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
+                  <div className="header-actions admin-profile-actions-tight">
+                    <Button type="submit" disabled={profileStatus.saving}>{profileStatus.saving ? 'جارٍ الحفظ...' : 'حفظ الملف الشخصي'}</Button>
+                  </div>
+                </form>
+              </div>
+            </Card>
+
+            <Card title="إدارة وسائل الدفع" className="admin-payment-methods-inline-card">
+              <div className="stack-md">
+                <form className="form-card" onSubmit={createMethodHandler}>
+                  <div className="form-grid">
+                    <label><span>اسم الوسيلة</span><input required value={newMethod.methodName} onChange={(e) => setNewMethod({ ...newMethod, methodName: e.target.value })} /></label>
+                    <label><span>رقم الهاتف</span><input value={newMethod.phoneNumber} onChange={(e) => setNewMethod({ ...newMethod, phoneNumber: e.target.value })} /></label>
+                  </div>
+                  <div className="form-grid">
+                    <label><span>اسم المستلم</span><input value={newMethod.accountName} onChange={(e) => setNewMethod({ ...newMethod, accountName: e.target.value })} /></label>
+                    <label className="checkbox-line admin-check"><input type="checkbox" checked={newMethod.isActive} onChange={(e) => setNewMethod({ ...newMethod, isActive: e.target.checked })} /> تفعيل الوسيلة</label>
+                  </div>
+                  <label><span>التعليمات</span><textarea rows="3" value={newMethod.instructions} onChange={(e) => setNewMethod({ ...newMethod, instructions: e.target.value })} /></label>
+                  <Button type="submit" disabled={methodsStatus.saving}>{methodsStatus.saving ? 'جارٍ الإضافة...' : 'إضافة وسيلة دفع'}</Button>
+                </form>
+
+                <div className="table-like">
+                  {methods.map((method) => (
+                    <div key={method._id} className="settings-block">
+                      <div className="plan-settings-head">
+                        <strong>{method.methodName}</strong>
+                        <Badge tone={method.isActive ? 'success' : 'warning'}>{method.isActive ? 'active' : 'inactive'}</Badge>
+                      </div>
+                      <div className="form-grid">
+                        <label><span>اسم الوسيلة</span><input value={method.methodName || ''} onChange={(e) => updateMethodField(method._id, 'methodName', e.target.value)} /></label>
+                        <label><span>رقم الهاتف</span><input value={method.phoneNumber || ''} onChange={(e) => updateMethodField(method._id, 'phoneNumber', e.target.value)} /></label>
+                      </div>
+                      <div className="form-grid">
+                        <label><span>اسم المستلم</span><input value={method.accountName || ''} onChange={(e) => updateMethodField(method._id, 'accountName', e.target.value)} /></label>
+                        <label className="checkbox-line admin-check"><input type="checkbox" checked={Boolean(method.isActive)} onChange={(e) => updateMethodField(method._id, 'isActive', e.target.checked)} /> تفعيل الوسيلة</label>
+                      </div>
+                      <label><span>التعليمات</span><textarea rows="3" value={method.instructions || ''} onChange={(e) => updateMethodField(method._id, 'instructions', e.target.value)} /></label>
+                      <div className="header-actions">
+                        <Button onClick={() => saveMethod(method)} disabled={methodsStatus.saving}>حفظ الوسيلة</Button>
+                        <Button variant="ghost" onClick={() => askRemoveMethod(method)} disabled={methodsStatus.saving}>حذف</Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
+            </Card>
+          </div>
 
-              <form className="form-card" onSubmit={saveProfile}>
-                <div className="form-grid">
-                  <label><span>اسم الأدمن</span><input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} /></label>
-                  <label><span>البريد الأساسي (ثابت من .env)</span><input type="email" value={profile.email} readOnly disabled /></label>
-                </div>
-                <label><span>صورة الأدمن</span><input type="file" accept="image/*" onChange={(e) => setProfile({ ...profile, avatar: e.target.files?.[0] || null })} /></label>
-                <label><span>كلمة المرور الحالية</span><input type="password" value={profile.currentPassword} onChange={(e) => setProfile({ ...profile, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></label>
-                <label><span>كلمة مرور جديدة</span><input type="password" value={profile.newPassword} onChange={(e) => setProfile({ ...profile, newPassword: e.target.value })} placeholder="اتركها فارغة إذا لا تريد التغيير" /></label>
-                <div className="header-actions">
-                  <Button type="submit" disabled={profileStatus.saving}>{profileStatus.saving ? 'جارٍ الحفظ...' : 'حفظ الملف الشخصي'}</Button>
-                </div>
-              </form>
-            </div>
-          </Card>
-
-          <Card title="تسعير الباقات الحقيقية">
+          <Card title="تسعير الباقات الحقيقية" className="admin-settings-side-column">
             <div className="stack-md">
               <div className="notice-card notice-info">
                 <strong>مهم</strong>
@@ -429,49 +472,7 @@ export default function AdminSettingsPage() {
           </Card>
         </div>
 
-        <div className="grid grid-2">
-          <Card title="إدارة وسائل الدفع">
-            <div className="stack-md">
-              <form className="form-card" onSubmit={createMethodHandler}>
-                <div className="form-grid">
-                  <label><span>اسم الوسيلة</span><input required value={newMethod.methodName} onChange={(e) => setNewMethod({ ...newMethod, methodName: e.target.value })} /></label>
-                  <label><span>رقم الهاتف</span><input value={newMethod.phoneNumber} onChange={(e) => setNewMethod({ ...newMethod, phoneNumber: e.target.value })} /></label>
-                </div>
-                <div className="form-grid">
-                  <label><span>اسم المستلم</span><input value={newMethod.accountName} onChange={(e) => setNewMethod({ ...newMethod, accountName: e.target.value })} /></label>
-                  <label className="checkbox-line admin-check"><input type="checkbox" checked={newMethod.isActive} onChange={(e) => setNewMethod({ ...newMethod, isActive: e.target.checked })} /> تفعيل الوسيلة</label>
-                </div>
-                <label><span>التعليمات</span><textarea rows="3" value={newMethod.instructions} onChange={(e) => setNewMethod({ ...newMethod, instructions: e.target.value })} /></label>
-                <Button type="submit" disabled={methodsStatus.saving}>{methodsStatus.saving ? 'جارٍ الإضافة...' : 'إضافة وسيلة دفع'}</Button>
-              </form>
 
-              <div className="table-like">
-                {methods.map((method) => (
-                  <div key={method._id} className="settings-block">
-                    <div className="plan-settings-head">
-                      <strong>{method.methodName}</strong>
-                      <Badge tone={method.isActive ? 'success' : 'warning'}>{method.isActive ? 'active' : 'inactive'}</Badge>
-                    </div>
-                    <div className="form-grid">
-                      <label><span>اسم الوسيلة</span><input value={method.methodName || ''} onChange={(e) => updateMethodField(method._id, 'methodName', e.target.value)} /></label>
-                      <label><span>رقم الهاتف</span><input value={method.phoneNumber || ''} onChange={(e) => updateMethodField(method._id, 'phoneNumber', e.target.value)} /></label>
-                    </div>
-                    <div className="form-grid">
-                      <label><span>اسم المستلم</span><input value={method.accountName || ''} onChange={(e) => updateMethodField(method._id, 'accountName', e.target.value)} /></label>
-                      <label className="checkbox-line admin-check"><input type="checkbox" checked={Boolean(method.isActive)} onChange={(e) => updateMethodField(method._id, 'isActive', e.target.checked)} /> تفعيل الوسيلة</label>
-                    </div>
-                    <label><span>التعليمات</span><textarea rows="3" value={method.instructions || ''} onChange={(e) => updateMethodField(method._id, 'instructions', e.target.value)} /></label>
-                    <div className="row-actions">
-                      <Button onClick={() => saveMethod(method)} disabled={methodsStatus.saving}>حفظ التعديلات</Button>
-                      <Button variant="danger" onClick={() => askRemoveMethod(method)} disabled={methodsStatus.saving}>حذف</Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-        </div>
       </div>
 
       <ConfirmDialog

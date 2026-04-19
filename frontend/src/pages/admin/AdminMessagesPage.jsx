@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import PageHeader from '../../components/common/PageHeader';
 import Card from '../../components/ui/Card';
 import Button from '../../components/ui/Button';
@@ -17,6 +17,13 @@ const initialReplyState = {
   error: '',
   message: null,
   replyText: '',
+};
+
+const statusToneMap = {
+  new: 'warning',
+  read: 'info',
+  archived: 'default',
+  replied: 'success',
 };
 
 export default function AdminMessagesPage() {
@@ -44,6 +51,13 @@ export default function AdminMessagesPage() {
     init();
   }, []);
 
+  const messageStats = useMemo(() => ({
+    total: messages.length,
+    fresh: messages.filter((msg) => msg.status === 'new').length,
+    archived: messages.filter((msg) => msg.status === 'archived').length,
+    replied: messages.filter((msg) => msg.lastReplyText).length,
+  }), [messages]);
+
   const changeStatus = async (messageId, nextStatus) => {
     try {
       await updateMessageStatus(messageId, { status: nextStatus });
@@ -59,7 +73,10 @@ export default function AdminMessagesPage() {
       saving: false,
       error: '',
       message: msg,
-      replyText: `مرحبًا ${msg.name}،\n\nشكرًا على رسالتك.\n`,
+      replyText: `مرحبًا ${msg.name}،
+
+شكرًا على رسالتك.
+`,
     });
   };
 
@@ -106,36 +123,81 @@ export default function AdminMessagesPage() {
 
   return (
     <>
-      <div className="stack-lg">
+      <div className="stack-lg admin-messages-page">
         <PageHeader
           title="رسائل التواصل"
-          text="يمكنك الرد على العميل مباشرة من داخل النظام أو حذف الرسائل نهائيًا من قاعدة البيانات."
+          text="واجهة رسائل احترافية مع بطاقات أنيقة، مؤشرات سريعة، وأزرار تنفيذ عصرية لرفع كفاءة فريق الإدارة."
+          actions={<Button variant="secondary" onClick={load}>تحديث الرسائل</Button>}
         />
+
+        <div className="admin-message-stats-grid">
+          <Card className="message-stat-card"><strong>{messageStats.total}</strong><span>إجمالي الرسائل</span></Card>
+          <Card className="message-stat-card"><strong>{messageStats.fresh}</strong><span>رسائل جديدة</span></Card>
+          <Card className="message-stat-card"><strong>{messageStats.replied}</strong><span>تم الرد عليها</span></Card>
+          <Card className="message-stat-card"><strong>{messageStats.archived}</strong><span>المؤرشفة</span></Card>
+        </div>
+
         {status.error ? <Card><p className="error-text">{status.error}</p></Card> : null}
-        <div className="stack-md">
+
+        <div className="admin-message-list">
           {messages.map((msg) => (
-            <Card
-              key={msg._id}
-              title={msg.subject}
-              action={<Badge tone={msg.status === 'new' ? 'warning' : msg.status === 'archived' ? 'default' : 'info'}>{msg.status}</Badge>}
-            >
-              <p><strong>{msg.name}</strong> — {msg.email} — {msg.phone || '-'}</p>
-              <p>{msg.message}</p>
+            <Card key={msg._id} className="admin-message-card">
+              <div className="admin-message-card-head">
+                <div className="admin-message-subject-wrap">
+                  <div className="admin-message-icon"><i className="fa-solid fa-envelope-open-text"></i></div>
+                  <div>
+                    <h3>{msg.subject}</h3>
+                    <p>{formatDate(msg.createdAt)}</p>
+                  </div>
+                </div>
+                <Badge tone={statusToneMap[msg.status] || 'default'}>{msg.status}</Badge>
+              </div>
+
+              <div className="admin-message-contact-grid">
+                <div><span>المرسل</span><strong>{msg.name}</strong></div>
+                <div><span>البريد الإلكتروني</span><strong>{msg.email}</strong></div>
+                <div><span>الهاتف</span><strong>{msg.phone || '-'}</strong></div>
+              </div>
+
+              <div className="admin-message-body-panel">
+                <span>نص الرسالة</span>
+                <p>{msg.message}</p>
+              </div>
+
               {msg.lastReplyText ? (
-                <div className="notice-card notice-success">
-                  <strong>آخر رد مرسل</strong>
+                <div className="admin-message-reply-preview">
+                  <div className="reply-preview-head">
+                    <i className="fa-solid fa-paper-plane"></i>
+                    <strong>آخر رد مرسل</strong>
+                  </div>
                   <p>{msg.lastReplyText}</p>
                 </div>
               ) : null}
-              <div className="row-actions">
-                <Button onClick={() => openReplyModal(msg)}>رد مباشر</Button>
-                <Button variant="ghost" onClick={() => changeStatus(msg._id, msg.status === 'archived' ? 'read' : 'archived')}>
+
+              <div className="admin-message-actions">
+                <Button className="message-action-btn" onClick={() => openReplyModal(msg)}>
+                  <i className="fa-solid fa-reply"></i>
+                  رد مباشر
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="message-action-btn"
+                  onClick={() => changeStatus(msg._id, msg.status === 'archived' ? 'read' : 'archived')}
+                >
+                  <i className={`fa-solid ${msg.status === 'archived' ? 'fa-eye' : 'fa-box-archive'}`}></i>
                   {msg.status === 'archived' ? 'تحديد كمقروء' : 'أرشفة'}
                 </Button>
-                {msg.status === 'new' ? <Button variant="secondary" onClick={() => changeStatus(msg._id, 'read')}>تعليم كمقروء</Button> : null}
-                <Button variant="danger" onClick={() => askDelete(msg)}>حذف نهائي</Button>
+                {msg.status === 'new' ? (
+                  <Button variant="secondary" className="message-action-btn" onClick={() => changeStatus(msg._id, 'read')}>
+                    <i className="fa-solid fa-check-double"></i>
+                    تعليم كمقروء
+                  </Button>
+                ) : null}
+                <Button variant="danger" className="message-action-btn" onClick={() => askDelete(msg)}>
+                  <i className="fa-solid fa-trash-can"></i>
+                  حذف نهائي
+                </Button>
               </div>
-              <small>{formatDate(msg.createdAt)}</small>
             </Card>
           ))}
         </div>

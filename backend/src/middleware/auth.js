@@ -5,7 +5,10 @@ const { AppError, asyncHandler } = require('../utils/errorhandling');
 
 const hasPathSegment = (value = '', segment = '') => new RegExp(`(^|/)${segment}(/|$)`).test(String(value || ''));
 const isAdminRoute = (req) => hasPathSegment(req.originalUrl || req.baseUrl || req.path || '', 'admin');
-const isUserRoute = (req) => hasPathSegment(req.originalUrl || req.baseUrl || req.path || '', 'users');
+const isUserRoute = (req) => {
+  const path = String(req.originalUrl || req.baseUrl || req.path || '');
+  return !isAdminRoute(req) && hasPathSegment(path, 'users');
+};
 
 const auth = asyncHandler(async (req, res, next) => {
   const authorization = req.headers.authorization;

@@ -517,7 +517,7 @@ const regenerateSlug = async (fullName, currentUserId) => {
   return finalSlug;
 };
 
-const updateUser = async (admin, userId, payload) => {
+const updateUser = async (admin, userId, payload, file) => {
   const user = await User.findById(userId).select('+passwordHash');
   if (!user) {
     throw new AppError('User not found', 404);
@@ -548,6 +548,21 @@ const updateUser = async (admin, userId, payload) => {
   if (payload.currentPlan !== undefined) user.currentPlan = payload.currentPlan;
   if (payload.status !== undefined) user.status = payload.status;
   if (payload.password) user.passwordHash = payload.password;
+
+  if (file) {
+    const uploaded = await optimizeAndUpload(file.path, 'linestart/profile-images');
+    if (user.profileImagePublicId) {
+      await removeFromCloudinary(user.profileImagePublicId);
+    }
+    user.profileImage = uploaded.secureUrl;
+    user.profileImagePublicId = uploaded.publicId;
+  } else if (String(payload.removeProfileImage || '').toLowerCase() === 'true') {
+    if (user.profileImagePublicId) {
+      await removeFromCloudinary(user.profileImagePublicId);
+    }
+    user.profileImage = '';
+    user.profileImagePublicId = '';
+  }
 
   await user.save();
 

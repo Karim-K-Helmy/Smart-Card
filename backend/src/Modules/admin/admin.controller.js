@@ -86,7 +86,7 @@ const updateUserStatus = async (req, res) => {
 };
 
 const updateUser = async (req, res) => {
-  const data = await adminService.updateUser(req.admin, req.params.userId, req.body);
+  const data = await adminService.updateUser(req.admin, req.params.userId, req.body, req.file);
   res.status(200).json({ success: true, message: 'User updated successfully', data });
 };
 

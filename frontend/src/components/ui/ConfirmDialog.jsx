@@ -18,12 +18,13 @@ export default function ConfirmDialog({
       open={open}
       onClose={onClose}
       size="sm"
+      wrapBody={false}
       title={title}
       description={description}
       footer={(
         <>
-          <Button variant="ghost" onClick={onClose} disabled={loading}>{cancelText}</Button>
-          <Button variant={tone === 'danger' ? 'danger' : 'primary'} onClick={onConfirm} disabled={loading}>
+          <Button variant="ghost" size="sm" onClick={onClose} disabled={loading}>{cancelText}</Button>
+          <Button variant={tone === 'danger' ? 'danger' : 'primary'} size="sm" onClick={onConfirm} disabled={loading}>
             {loading ? 'جارٍ التنفيذ...' : confirmText}
           </Button>
         </>
