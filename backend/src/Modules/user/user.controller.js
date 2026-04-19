@@ -1,4 +1,5 @@
 const userService = require('./user.service');
+const { subscribeUser } = require('../../services/realtime.service');
 
 const register = async (req, res) => {
   const data = await userService.register(req.body);
@@ -65,6 +66,10 @@ const markMyNotificationAsRead = async (req, res) => {
   res.status(200).json({ success: true, message: 'Notifications marked as read', data });
 };
 
+const notificationStream = async (req, res) => {
+  subscribeUser(req.user._id, res);
+};
+
 const updateProfile = async (req, res) => {
   const data = await userService.updateProfile(req.user._id, req.body, req.files || {});
   res.status(200).json({ success: true, message: 'Profile updated successfully', data });
@@ -114,6 +119,7 @@ module.exports = {
   getMyNotifications,
   getMyNotificationCount,
   markMyNotificationAsRead,
+  notificationStream,
   updateProfile,
   changePassword,
   createProduct,

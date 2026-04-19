@@ -494,7 +494,7 @@ const buildOrderNotice = (latestOrder) => {
     },
     approved: {
       title: 'تم اعتماد طلب البطاقة',
-      text: `تمت الموافقة على طلب ${latestOrder.cardPlanId?.name || 'البطاقة'} ويمكنك الآن استخدام البطاقة.`,
+      text: latestOrder.cardPlanId?.planCode === 'PRO' ? 'تمت الموافقة على طلب Pro ويمكنك الآن استخدام البطاقة.' : `تمت الموافقة على طلب ${latestOrder.cardPlanId?.name || 'البطاقة'} ويمكنك الآن استخدام البطاقة.`,
       status: 'success',
     },
     rejected: {
@@ -525,7 +525,7 @@ const buildReceiptNotice = (latestReceipt) => {
 
   const receiptMap = {
     pending: 'تم استلام صورة الإيصال وهي بانتظار المراجعة.',
-    approved: 'تمت الموافقة على إيصال الدفع بنجاح.',
+    approved: latestReceipt.cardOrderId?.cardPlanId?.planCode === 'PRO' ? 'تمت الموافقة على طلب Pro ويمكنك الآن استخدام البطاقة.' : 'تمت الموافقة على إيصال الدفع بنجاح.',
     rejected: latestReceipt.reviewNote || 'تم رفض إيصال الدفع الأخير.',
   };
 
@@ -544,8 +544,8 @@ const buildCardNotice = (card) => {
   if (card.isActive) {
     return {
       id: `card-${card._id}`,
-      title: 'بطاقتك مفعلة',
-      text: `كود البطاقة: ${card.cardCode}. الرابط جاهز للمشاركة.`,
+      title: 'تم اعتماد طلب البطاقة',
+      text: 'تم اعتماد طلب البطاقة وأصبحت البطاقة مفعلة وجاهزة للاستخدام.',
       status: 'success',
       createdAt: card.lastStatusChangedAt || card.activatedAt || card.createdAt || new Date(),
     };
@@ -554,8 +554,8 @@ const buildCardNotice = (card) => {
   if (card.suspendedAt) {
     return {
       id: `card-suspended-${card._id}`,
-      title: 'تم إيقاف بطاقتك',
-      text: 'تم إيقاف بطاقتك مؤقتًا من الإدارة، وتم تعطيل الصفحة العامة الخاصة بها. يُرجى الرجوع إلى الإدارة.',
+      title: 'تم إيقاف الحساب أو البطاقة',
+      text: 'تم إيقاف بطاقتك أو تعطيلها مؤقتًا من الإدارة. يُرجى الرجوع إلى الإدارة.',
       status: 'danger',
       createdAt: card.suspendedAt || card.lastStatusChangedAt || new Date(),
     };
@@ -577,7 +577,7 @@ const buildUserNotificationPayload = async (currentUser) => {
 
   const [orders, receipts, card, orderUnreadCount, receiptUnreadCount, latestUnreadOrder, latestUnreadReceipt, latestCardEvent] = await Promise.all([
     CardOrder.find({ userId: user._id }).populate('cardPlanId').sort({ createdAt: -1 }).limit(5),
-    PaymentReceipt.find({ userId: user._id }).populate('paymentMethodId').sort({ createdAt: -1 }).limit(5),
+    PaymentReceipt.find({ userId: user._id }).populate('paymentMethodId').populate({ path: 'cardOrderId', populate: { path: 'cardPlanId' } }).sort({ createdAt: -1 }).limit(5),
     Card.findOne({ userId: user._id }).sort({ lastStatusChangedAt: -1, suspendedAt: -1, activatedAt: -1 }),
     CardOrder.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.orders ? { updatedAt: { $gt: user.notificationSeenAt.orders } } : {}) }),
     PaymentReceipt.countDocuments({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) }),
@@ -586,6 +586,7 @@ const buildUserNotificationPayload = async (currentUser) => {
       .sort({ updatedAt: -1, createdAt: -1 }),
     PaymentReceipt.findOne({ userId: user._id, ...(user.notificationSeenAt?.notifications ? { createdAt: { $gt: user.notificationSeenAt.notifications } } : {}) })
       .populate('paymentMethodId')
+      .populate({ path: 'cardOrderId', populate: { path: 'cardPlanId' } })
       .sort({ createdAt: -1 }),
     Card.findOne(cardNotificationFilter)
       .sort({ lastStatusChangedAt: -1, suspendedAt: -1, activatedAt: -1 }),

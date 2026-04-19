@@ -1,4 +1,5 @@
 const adminService = require('./admin.service');
+const { subscribeAdmin } = require('../../services/realtime.service');
 
 const login = async (req, res) => {
   const data = await adminService.login(req.body);
@@ -43,6 +44,10 @@ const getNotificationCount = async (req, res) => {
 const markNotificationAsRead = async (req, res) => {
   const data = await adminService.markNotificationAsRead(req.admin._id, req.params.type);
   res.status(200).json({ success: true, message: 'Notification marked as read successfully', data });
+};
+
+const notificationStream = async (req, res) => {
+  subscribeAdmin('global', res);
 };
 
 const getMe = async (req, res) => {
@@ -135,6 +140,7 @@ module.exports = {
   notificationSummary,
   getNotificationCount,
   markNotificationAsRead,
+  notificationStream,
   getMe,
   updateMe,
   listAdmins,

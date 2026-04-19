@@ -49,6 +49,7 @@ router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(contr
 router.post('/check-phone', validate(checkPhoneSchema), asyncHandler(controller.checkPhoneExists));
 router.post('/data-requests', validate(createDataRequestSchema), asyncHandler(controller.createDataRequest));
 router.get('/profile', auth, asyncHandler(controller.getMyProfile));
+router.get('/notifications/stream', auth, controller.notificationStream);
 router.get('/notifications', auth, asyncHandler(controller.getMyNotifications));
 router.get('/notifications/:type/count', auth, validate(notificationTypeSchema), asyncHandler(controller.getMyNotificationCount));
 router.patch('/notifications/:type/read', auth, validate(notificationTypeSchema), asyncHandler(controller.markMyNotificationAsRead));

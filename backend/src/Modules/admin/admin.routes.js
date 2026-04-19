@@ -53,6 +53,7 @@ router.post('/forgot-password/verify-otp', validate(verifyForgotPasswordSchema),
 router.post('/reset-password', validate(resetPasswordSchema), asyncHandler(controller.resetPassword));
 router.get('/dashboard', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.dashboard));
 router.get('/resource-monitoring', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.resourceMonitoring));
+router.get('/notifications/stream', auth, allowTo('admin', 'super_admin'), controller.notificationStream);
 router.get('/notifications/summary', auth, allowTo('admin', 'super_admin'), asyncHandler(controller.notificationSummary));
 router.get('/notifications/:type/count', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.getNotificationCount));
 router.patch('/notifications/:type/read', auth, allowTo('admin', 'super_admin'), validate(notificationTypeSchema), asyncHandler(controller.markNotificationAsRead));

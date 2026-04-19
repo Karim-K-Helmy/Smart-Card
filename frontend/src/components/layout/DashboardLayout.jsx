@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getAdminNotificationSummary } from '../../services/api/admin';
 import { getMyNotifications } from '../../services/api/users';
+import { createNotificationStream } from '../../services/realtime';
 import { translateDisplayValue } from '../../utils/display';
 
 const userNav = [
@@ -29,6 +30,7 @@ const adminNav = [
 ];
 
 const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
+const REALTIME_NOTIFICATION_EVENT = 'realtime-notification';
 
 const getInitials = (name) =>
   String(name || 'LS')
@@ -68,12 +70,16 @@ export default function DashboardLayout({ area }) {
   }, [refreshBadges]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      refreshBadges();
-    }, 30000);
+    const stream = createNotificationStream(area, {
+      onNotification: (payload) => {
+        refreshBadges();
+        window.dispatchEvent(new CustomEvent(REALTIME_NOTIFICATION_EVENT, { detail: { area, payload } }));
+      },
+    });
 
-    return () => window.clearInterval(timer);
-  }, [refreshBadges]);
+    return () => stream.close();
+  }, [area, refreshBadges]);
+
 
   useEffect(() => {
     const handleBadgeSync = (event) => {

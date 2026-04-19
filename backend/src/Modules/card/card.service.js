@@ -6,6 +6,7 @@ const PaymentMethod = require('../../../DB/Models/paymentMethod.model');
 const PaymentReceipt = require('../../../DB/Models/paymentReceipt.model');
 const { AppError } = require('../../utils/errorhandling');
 const { optimizeAndUpload } = require('../../services/MulterLocally');
+const { emitAdminNotification, emitUserNotification } = require('../../services/realtime.service');
 const { buildMergedBackImage, buildCardPdf } = require('../../services/card-media.service');
 const { buildProfileLink } = require('../../services/qr.service');
 
@@ -84,13 +85,18 @@ const createOrder = async (user, payload) => {
   const plan = await ensurePlanExists(payload.cardPlanId);
   await ensureNoOpenOrder(user._id);
 
-  return CardOrder.create({
+  const order = await CardOrder.create({
     userId: user._id,
     cardPlanId: plan._id,
     orderStatus: 'waiting_payment',
     totalAmount: plan.price,
     notes: payload.notes || '',
   });
+
+  emitAdminNotification('orders', { key: 'orders', entityId: String(order._id) });
+  emitUserNotification(user._id, 'orders', { key: 'orders', entityId: String(order._id) });
+
+  return order;
 };
 
 const checkout = async (currentUser, payload, file) => {
@@ -139,6 +145,11 @@ const checkout = async (currentUser, payload, file) => {
 
   order.orderStatus = 'under_review';
   await order.save();
+
+  emitAdminNotification('orders', { key: 'orders', entityId: String(order._id) });
+  emitAdminNotification('payments', { key: 'payments', entityId: String(receipt._id) });
+  emitUserNotification(user._id, 'orders', { key: 'orders', entityId: String(order._id) });
+  emitUserNotification(user._id, 'notifications', { key: 'notifications', entityId: String(receipt._id) });
 
   return {
     order: await CardOrder.findById(order._id).populate('cardPlanId'),

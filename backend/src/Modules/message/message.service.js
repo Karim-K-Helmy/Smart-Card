@@ -1,6 +1,7 @@
 const Message = require('../../../DB/Models/message.model');
 const { AppError } = require('../../utils/errorhandling');
 const sendEmail = require('../../services/sendEmail');
+const { emitAdminNotification } = require('../../services/realtime.service');
 
 const createMessage = async (payload) => {
   const message = await Message.create(payload);
@@ -21,6 +22,7 @@ const createMessage = async (payload) => {
     }).catch(() => null);
   }
 
+  emitAdminNotification('messages', { key: 'messages', entityId: String(message._id) });
   return message;
 };
 

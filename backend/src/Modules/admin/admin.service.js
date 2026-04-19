@@ -13,6 +13,7 @@ const { issueCode, consumeCode, findValidCode } = require('../../services/verifi
 const { optimizeAndUpload, removeFromCloudinary } = require('../../services/MulterLocally');
 const logAdminAction = require('../../services/admin-log.service');
 const { getResourceMonitoringSnapshot } = require('../../services/resource-monitor.service');
+const { emitUserNotification } = require('../../services/realtime.service');
 
 const getConfiguredAdminEmails = (fallbackEmail = '') => {
   const raw = [process.env.ADMIN_EMAIL, process.env.ADMIN_SEED_EMAIL, fallbackEmail]
@@ -501,6 +502,8 @@ const updateUserStatus = async (admin, userId, { status, notes }) => {
     notes: notes || `Status changed to ${status}`,
   });
 
+  emitUserNotification(user._id, 'notifications', { key: 'notifications', status });
+
   return user;
 };
 
@@ -574,6 +577,8 @@ const updateUser = async (admin, userId, payload, file) => {
     targetId: user._id,
     notes: `Updated user ${user.email}`,
   });
+
+  emitUserNotification(user._id, 'notifications', { key: 'notifications', currentPlan: user.currentPlan, status: user.status });
 
   return user;
 };
@@ -679,6 +684,8 @@ const toggleCardStatus = async (admin, cardId, isActive) => {
     targetId: card._id,
     notes: `Card active state changed to ${nextState}`,
   });
+
+  emitUserNotification(card.userId?._id || card.userId, 'notifications', { key: 'notifications', cardStatus: nextState ? 'active' : 'suspended' });
 
   return card;
 };

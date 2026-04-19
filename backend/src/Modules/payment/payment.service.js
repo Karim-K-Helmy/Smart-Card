@@ -8,6 +8,7 @@ const { AppError } = require('../../utils/errorhandling');
 const { optimizeAndUpload } = require('../../services/MulterLocally');
 const { generateCardCode, generateQrAssets } = require('../../services/qr.service');
 const logAdminAction = require('../../services/admin-log.service');
+const { emitAdminNotification, emitUserNotification } = require('../../services/realtime.service');
 
 const listPaymentMethods = async ({ includeInactive = false } = {}) => {
   const filter = includeInactive ? {} : { isActive: true };
@@ -76,6 +77,10 @@ const createReceipt = async (user, payload, file) => {
   order.orderStatus = 'under_review';
   await order.save();
 
+  emitAdminNotification('payments', { key: 'payments', entityId: String(receipt._id) });
+  emitAdminNotification('orders', { key: 'orders', entityId: String(order._id) });
+  emitUserNotification(user._id, 'notifications', { key: 'notifications', entityId: String(receipt._id) });
+
   return receipt;
 };
 
@@ -126,6 +131,7 @@ const createCardForOrder = async (order, user) => {
   if (existingCard) {
     existingCard.isActive = true;
     existingCard.activatedAt = new Date();
+    existingCard.lastStatusChangedAt = new Date();
     await existingCard.save();
     return existingCard;
   }
@@ -183,6 +189,8 @@ const reviewReceipt = async (admin, receiptId, payload) => {
       notes: payload.reviewNote || 'Payment approved',
     });
 
+    emitUserNotification(user._id, 'orders', { key: 'orders', entityId: String(order._id), reviewStatus: payload.reviewStatus });
+    emitUserNotification(user._id, 'notifications', { key: 'notifications', entityId: String(receipt._id), reviewStatus: payload.reviewStatus, accountPlan: user.currentPlan });
     return { receipt, order, card };
   }
 
@@ -198,6 +206,8 @@ const reviewReceipt = async (admin, receiptId, payload) => {
     notes: payload.reviewNote || 'Payment rejected',
   });
 
+  emitUserNotification(user._id, 'orders', { key: 'orders', entityId: String(order._id), reviewStatus: payload.reviewStatus });
+  emitUserNotification(user._id, 'notifications', { key: 'notifications', entityId: String(receipt._id), reviewStatus: payload.reviewStatus });
   return { receipt, order };
 };
 

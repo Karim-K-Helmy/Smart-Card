@@ -12,12 +12,14 @@ const isUserRoute = (req) => {
 
 const auth = asyncHandler(async (req, res, next) => {
   const authorization = req.headers.authorization;
+  const queryToken = typeof req.query?.accessToken === 'string' ? req.query.accessToken : '';
+  const token = authorization && authorization.startsWith('Bearer ')
+    ? authorization.split(' ')[1]
+    : queryToken;
 
-  if (!authorization || !authorization.startsWith('Bearer ')) {
+  if (!token) {
     return next(new AppError('Unauthorized: missing or invalid token', 401));
   }
-
-  const token = authorization.split(' ')[1];
   const decoded = verifyToken(token);
   const accountModel = decoded?.accountModel;
 

@@ -5,13 +5,13 @@ import { getMyNotifications, markMyNotificationAsRead } from '../../services/api
 import { extractApiError, formatDate } from '../../utils/api';
 
 const BADGE_SYNC_EVENT = 'dashboard-badge-sync';
+const REALTIME_NOTIFICATION_EVENT = 'realtime-notification';
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
   const [status, setStatus] = useState({ loading: true, error: '' });
 
-  useEffect(() => {
-    const load = async () => {
+  const load = async () => {
       try {
         const [notificationsRes] = await Promise.all([
           getMyNotifications(),
@@ -24,7 +24,17 @@ export default function NotificationsPage() {
         setStatus({ loading: false, error: extractApiError(error) });
       }
     };
+  useEffect(() => {
     load();
+
+    const handleRealtime = (event) => {
+      if (event.detail?.area === 'user') {
+        load();
+      }
+    };
+
+    window.addEventListener(REALTIME_NOTIFICATION_EVENT, handleRealtime);
+    return () => window.removeEventListener(REALTIME_NOTIFICATION_EVENT, handleRealtime);
   }, []);
 
   return (
